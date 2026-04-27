@@ -1,0 +1,22 @@
+<launch>
+	<arg name="serial_port" default="/dev/ttyimu"/>
+	<arg name="baud" default="921600"/>
+	<arg name="frame_id" default="base_link"/>
+	<arg name="timer_period" default="0.0025"/>
+	<arg name="orientation_covariance" default="[-1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]"/>
+	<arg name="angular_velocity_covariance" default="[0.0001, 0.0, 0.0, 0.0, 0.0001, 0.0, 0.0, 0.0, 0.0001]"/>
+	<arg name="linear_acceleration_covariance" default="[0.01, 0.0, 0.0, 0.0, 0.01, 0.0, 0.0, 0.0, 0.01]"/>
+	<arg name="enable_debug_echo" default="true"/>
+
+	<node pkg="serial_port" name="imu_sonser_spec" type="serial_imu">
+		<param name="serial_port" value="$(arg serial_port)"/>
+		<param name="baud" value="$(arg baud)"/>
+		<param name="frame_id" value="$(arg frame_id)"/>
+		<param name="timer_period" value="$(arg timer_period)"/>
+		<rosparam param="orientation_covariance" subst_value="true">$(arg orientation_covariance)</rosparam>
+		<rosparam param="angular_velocity_covariance" subst_value="true">$(arg angular_velocity_covariance)</rosparam>
+		<rosparam param="linear_acceleration_covariance" subst_value="true">$(arg linear_acceleration_covariance)</rosparam>
+	</node>
+	<node if="$(arg enable_debug_echo)" pkg="serial_port" name="sub_spec" type="sub_spec" output="screen"/>
+
+</launch>

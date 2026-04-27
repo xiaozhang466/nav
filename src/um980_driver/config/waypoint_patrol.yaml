@@ -1,0 +1,104 @@
+waypoints_file: "$(find um980_driver)/waypoints/inspection_waypoints.yaml"
+frame_id: "map"
+base_frame: "base_link"
+move_base_action: "/move_base"
+
+# Safety-first default: launch the node, then start through service or set
+# auto_start:=true in the launch file when the test area is clear.
+auto_start: false
+auto_start_retry_period: 2.0
+# 0.0 means keep retrying until localization TF is available.
+auto_start_timeout: 0.0
+# Wait for FAST/global localization to stop jumping before sending the first
+# move_base goal. This prevents one-shot bringup from starting at the temporary
+# origin pose before ScanContext or RTK correction finishes.
+auto_start_settle_time: 5.0
+auto_start_pose_jump_tolerance: 0.5
+auto_start_yaw_jump_tolerance_deg: 20.0
+# Closed-loop patrol: after reaching either end, reverse direction and patrol
+# back along the same route instead of asking move_base to discover the U-turn.
+loop: true
+ping_pong: true
+
+# When resuming from the middle of the route, select the first waypoint at least
+# this far ahead of the closest route projection.
+start_advance_distance: 1.0
+skip_distance: 0.8
+off_route_warn_distance: 3.0
+
+goal_timeout: 0.0
+wait_for_server_timeout: 10.0
+max_retries: 1
+next_goal_delay: 0.3
+
+# U-turn controller used only at route ends. It cancels move_base, publishes
+# pure angular velocity to the same pre-smoother command topic, then resumes
+# normal DWA goals once the robot faces the return direction.
+turn_in_place_enabled: true
+turn_cmd_vel_topic: /cmd_vel_nav
+turn_control_rate: 10.0
+turn_yaw_tolerance_deg: 8.0
+turn_angular_speed: 0.35
+turn_min_angular_speed: 0.12
+turn_kp: 1.2
+turn_timeout: 14.0
+
+# Route-following mode: checkpoints are only used to track patrol progress.
+# move_base is always given a look-ahead goal farther along the sampled route,
+# so the local planner can keep moving along a continuous reference path
+# instead of stopping on every discrete point.
+advance_on_pass_radius: true
+pass_radius: 1.0
+final_pass_radius: 0.8
+ignore_goal_yaw: true
+
+continuous_advance: true
+advance_distance: 1.2
+advance_check_rate: 5.0
+use_interpolated_goal: true
+goal_lookahead_distance: 6.0
+goal_update_distance: 1.0
+goal_update_min_interval: 0.5
+route_realign_distance: 2.0
+# Keep patrol continuous by default. RouteGlobalPlanner now builds a soft merge
+# back toward the reference route, so we do not split behavior into a dedicated
+# "rejoin first, patrol later" phase unless we explicitly opt back into it.
+rejoin_mode_enabled: false
+rejoin_enter_route_error: 0.5
+rejoin_exit_route_error: 0.25
+rejoin_goal_lookahead_distance: 0.0
+rejoin_goal_update_distance: 0.3
+rejoin_use_route_yaw: false
+# Startup alignment mode: when the robot begins with a noticeable lateral or
+# heading error, temporarily switch to a shorter look-ahead target so it can
+# merge onto the route before the normal long look-ahead takes over.
+startup_mode_enabled: true
+startup_goal_lookahead_distance: 2.0
+startup_enter_route_error: 0.4
+startup_exit_route_error: 0.25
+startup_enter_yaw_error_deg: 30.0
+startup_exit_yaw_error_deg: 15.0
+startup_release_progress: 2.5
+startup_use_route_yaw: true
+# If localization jumps after an early auto-start, update the active checkpoint
+# from the current route progress instead of continuing toward an old point.
+realign_while_running: true
+terminal_mode_enabled: true
+# Treat the last few meters as a terminal segment: promote the active
+# checkpoint to the route end, stop chasing intermediate points, and allow a
+# looser "close enough" completion so move_base does not stall on the final
+# tail.
+terminal_mode_distance: 8.0
+terminal_pass_radius: 1.6
+terminal_progress_tolerance: 1.0
+terminal_use_waypoint_yaw: true
+
+# Legacy fallback if use_interpolated_goal is false.
+goal_lookahead_count: 1
+
+status_rate: 1.0
+
+# Navigation is 2D, so keep move_base goals on the map plane even if the source
+# trajectory carries LiDAR z values.
+use_waypoint_z: false
+goal_z: 0.0

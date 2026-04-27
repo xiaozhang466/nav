@@ -1,0 +1,43 @@
+rtk_odom_topic: /odometry/rtk_map
+lidar_odom_topic: /odometry/lidar_map
+lidar_status_topic: /lidar_localization/status
+rtk_fix_type_topic: /rtk/fix_type
+rtk_position_type_topic: /rtk/position_type
+initialpose_topic: /initialpose
+status_topic: /rtk_lidar_relocalizer/status
+
+map_frame: map
+source_timeout: 1.0
+status_timeout: 2.0
+accepted_fix_types: [rtk_fixed]
+accepted_position_types: [NARROW_INT, L1_INT]
+
+# Use RTK as the trusted outdoor pose source. Automatic relocalization resets
+# FAST-LOCALIZATION position and yaw when LiDAR drifts far enough from RTK.
+yaw_source: rtk
+allow_rtk_yaw_fallback: false
+
+initialpose_xy_covariance: 0.04
+initialpose_yaw_covariance: 0.03
+publish_count: 3
+publish_period: 0.05
+
+# Real automatic relocalization mode. Keep thresholds conservative so normal
+# centimeter-level RTK/LiDAR differences do not cause repeated resets.
+auto_enabled: true
+auto_check_rate: 1.0
+auto_min_xy_delta: 1.0
+auto_min_yaw_delta_deg: 25.0
+# Do not trigger again on a stable RTK/LiDAR bias. After startup or after each
+# successful relocalization, remember the best recent RTK/LiDAR agreement and
+# only auto-reset when the mismatch keeps growing beyond this extra margin.
+auto_min_xy_growth: 0.5
+auto_min_yaw_growth_deg: 8.0
+auto_relocalize_on_lidar_unhealthy: true
+auto_lidar_bad_reasons:
+  - lidar_jump
+  - xy_inconsistent
+  - yaw_inconsistent
+  - stale_lidar
+relocalize_cooldown: 10.0
+post_relocalize_grace_period: 15.0

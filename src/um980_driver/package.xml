@@ -1,0 +1,45 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>um980_driver</name>
+  <version>0.1.0</version>
+  <description>UM980 RTK tools and ROS Noetic driver package.</description>
+
+  <maintainer email="sigu@todo.todo">sigu</maintainer>
+  <license>Proprietary</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <depend>actionlib</depend>
+  <depend>actionlib_msgs</depend>
+  <depend>costmap_2d</depend>
+  <depend>geometry_msgs</depend>
+  <depend>move_base_msgs</depend>
+  <depend>nav_core</depend>
+  <depend>nav_msgs</depend>
+  <depend>pluginlib</depend>
+  <depend>roscpp</depend>
+  <depend>rospy</depend>
+  <depend>sensor_msgs</depend>
+  <depend>std_msgs</depend>
+  <depend>std_srvs</depend>
+  <depend>tf</depend>
+  <depend>tf2_ros</depend>
+  <depend>visualization_msgs</depend>
+
+  <exec_depend>clear_costmap_recovery</exec_depend>
+  <exec_depend>dwa_local_planner</exec_depend>
+  <exec_depend>imu_launch</exec_depend>
+  <exec_depend>map_server</exec_depend>
+  <exec_depend>move_base</exec_depend>
+  <exec_depend>navfn</exec_depend>
+  <exec_depend>rosbag</exec_depend>
+  <exec_depend>rotate_recovery</exec_depend>
+  <exec_depend>rviz</exec_depend>
+  <exec_depend>python3-serial</exec_depend>
+  <exec_depend>python3-yaml</exec_depend>
+  <exec_depend>robot_localization</exec_depend>
+
+  <export>
+    <nav_core plugin="${prefix}/route_global_planner_plugin.xml" />
+  </export>
+</package>

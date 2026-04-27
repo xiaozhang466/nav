@@ -1,0 +1,60 @@
+map_frame: map
+odom_frame: odom
+base_frame: base_link
+
+global_odom_topic: /odometry/global_nav
+rtk_odom_topic: /odometry/rtk_map
+lidar_odom_topic: /odometry/lidar_map
+local_odom_topic: /odometry/filtered
+chassis_odom_topic: /ranger_base_node/odom
+cmd_vel_nav_topic: /cmd_vel_nav
+cmd_vel_topic: /cmd_vel
+
+global_status_topic: /global_localization/status
+lidar_status_topic: /lidar_localization/status
+relocalizer_status_topic: /rtk_lidar_relocalizer/status
+waypoint_status_topic: /waypoint_patrol/status
+rtk_fix_type_topic: /rtk/fix_type
+rtk_position_type_topic: /rtk/position_type
+move_base_status_topic: /move_base/status
+global_plan_topic: /move_base/NavfnROS/plan
+local_plan_topic: /move_base/DWAPlannerROS/local_plan
+
+status_topic: /nav_health/status
+event_topic: /nav_health/events
+marker_topic: /nav_health/markers
+marker_frame: base_link
+
+status_rate: 2.0
+snapshot_rate: 1.0
+topic_timeout: 2.0
+tf_timeout: 0.05
+event_hold_time: 5.0
+event_cooldown: 3.0
+
+# LiDAR/RTK disagreement warning. This does not trigger relocalization; it only
+# records a diagnostic event so we can correlate it with jitter.
+rtk_lidar_xy_warn: 0.8
+rtk_lidar_yaw_warn_deg: 20.0
+
+# Global navigation pose jump detection.
+pose_jump_xy: 0.35
+pose_jump_speed: 1.5
+pose_jump_yaw_deg: 20.0
+pose_jump_yaw_rate_deg: 120.0
+
+# Command oscillation detection.
+cmd_oscillation_window: 2.0
+cmd_oscillation_min_sign_changes: 4
+cmd_oscillation_min_abs_w: 0.12
+
+# Detect cases where the controller is commanding motion but chassis odometry
+# stays almost stopped for a short period.
+commanded_motion_v: 0.10
+commanded_motion_w: 0.15
+actual_motion_v: 0.03
+actual_motion_w: 0.05
+command_mismatch_duration: 1.0
+
+log_enabled: true
+log_dir: ~/.ros/nav_health

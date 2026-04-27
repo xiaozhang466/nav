@@ -1,0 +1,53 @@
+<launch>
+  <arg name="rtk_config" default="$(find um980_driver)/config/rtk_client.ini" />
+  <arg name="launch_rtk" default="true" />
+  <arg name="launch_imu" default="true" />
+  <arg name="gps_frame_id" default="gps_link" />
+  <arg name="um980_status_interval" default="1.0" />
+  <arg name="bad_gga_warn_interval" default="0.0" />
+  <arg name="rtk_status_interval" default="5.0" />
+
+  <arg name="imu_package" default="spec" />
+  <arg name="imu_serial_port" default="/dev/ttyimu" />
+  <arg name="imu_baud" default="921600" />
+  <arg name="imu_frame_id" default="base_link" />
+  <arg name="imu_timer_period" default="0.0025" />
+  <arg name="imu_orientation_covariance" default="[7.348567308716765e-05, -4.3882620070814594e-06, -3.473961286608797e-06, -4.3882620070814594e-06, 7.959353928652679e-05, 1.958731536376626e-06, -3.473961286608797e-06, 1.958731536376626e-06, 1.0603682546591704e-05]" />
+  <arg name="imu_angular_velocity_covariance" default="[2.514820774702671e-06, 0.0, 0.0, 0.0, 2.840413507693534e-06, 0.0, 0.0, 0.0, 5.0e-05]" />
+  <arg name="imu_linear_acceleration_covariance" default="[0.0017920532085053012, -6.73923279568846e-05, 0.006632258635135463, -6.73923279568846e-05, 0.002919701117708513, 0.0021246417831104454, 0.006632258635135463, 0.0021246417831104454, 0.05407291047401798]" />
+  <arg name="imu_enable_debug_echo" default="false" />
+
+  <arg name="gps_offset_x" default="-0.20" />
+  <arg name="gps_offset_y" default="0.0" />
+  <arg name="gps_offset_z" default="0.30" />
+  <arg name="gps_roll" default="0.0" />
+  <arg name="gps_pitch" default="0.0" />
+  <arg name="gps_yaw" default="0.0" />
+
+  <include if="$(arg launch_imu)" file="$(find imu_launch)/launch/imu_msg1.launch">
+    <arg name="imu_package" value="$(arg imu_package)" />
+    <arg name="serial_port" value="$(arg imu_serial_port)" />
+    <arg name="baud" value="$(arg imu_baud)" />
+    <arg name="frame_id" value="$(arg imu_frame_id)" />
+    <arg name="timer_period" value="$(arg imu_timer_period)" />
+    <arg name="orientation_covariance" value="$(arg imu_orientation_covariance)" />
+    <arg name="angular_velocity_covariance" value="$(arg imu_angular_velocity_covariance)" />
+    <arg name="linear_acceleration_covariance" value="$(arg imu_linear_acceleration_covariance)" />
+    <arg name="enable_debug_echo" value="$(arg imu_enable_debug_echo)" />
+  </include>
+
+  <include if="$(arg launch_rtk)" file="$(find um980_driver)/launch/um980_ros.launch">
+    <arg name="config" value="$(arg rtk_config)" />
+    <arg name="frame_id" value="$(arg gps_frame_id)" />
+    <arg name="um980_status_interval" value="$(arg um980_status_interval)" />
+    <arg name="bad_gga_warn_interval" value="$(arg bad_gga_warn_interval)" />
+    <arg name="status_interval" value="$(arg rtk_status_interval)" />
+  </include>
+
+  <node
+    if="$(arg launch_rtk)"
+    pkg="tf2_ros"
+    type="static_transform_publisher"
+    name="base_link_to_gps_link"
+    args="$(arg gps_offset_x) $(arg gps_offset_y) $(arg gps_offset_z) $(arg gps_yaw) $(arg gps_pitch) $(arg gps_roll) base_link $(arg gps_frame_id)" />
+</launch>

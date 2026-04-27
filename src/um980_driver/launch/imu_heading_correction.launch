@@ -1,0 +1,19 @@
+<launch>
+  <arg name="input_topic" default="/IMU_data" />
+  <arg name="output_topic" default="/IMU_data_enu" />
+  <arg name="frame_id" default="" />
+  <arg name="north_to_east_deg" default="90.0" />
+  <arg name="yaw_bias_deg" default="11.7" />
+
+  <node
+    pkg="um980_driver"
+    type="imu_heading_correction.py"
+    name="imu_heading_correction"
+    output="screen">
+    <param name="input_topic" value="$(arg input_topic)" />
+    <param name="output_topic" value="$(arg output_topic)" />
+    <param name="frame_id" value="$(arg frame_id)" />
+    <param name="north_to_east_deg" value="$(arg north_to_east_deg)" />
+    <param name="yaw_bias_deg" value="$(arg yaw_bias_deg)" />
+  </node>
+</launch>

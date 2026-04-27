@@ -1,0 +1,13 @@
+input_topic: /cmd_vel_nav
+output_topic: /cmd_vel
+rate: 20.0
+input_timeout: 0.4
+zero_epsilon: 0.003
+
+max_linear_x: 0.35
+max_angular_z: 0.8
+
+linear_accel: 0.35
+linear_decel: 0.45
+angular_accel: 2.5
+angular_decel: 3.0

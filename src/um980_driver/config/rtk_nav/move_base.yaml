@@ -1,0 +1,43 @@
+base_global_planner: navfn/NavfnROS
+base_local_planner: dwa_local_planner/DWAPlannerROS
+
+planner_frequency: 1.0
+planner_patience: 5.0
+controller_frequency: 8.0
+controller_patience: 8.0
+
+# Returning from the last waypoint to the first can require a large in-place
+# turn.  Keep the watchdog enabled, but give DWA enough time to complete that
+# turn before move_base declares oscillation.
+oscillation_timeout: 60.0
+oscillation_distance: 0.3
+
+# Keep recovery behaviors disabled for the first RTK-only outdoor tests so the
+# robot does not perform unexpected clearing rotations.
+recovery_behavior_enabled: false
+clearing_rotation_allowed: false
+shutdown_costmaps: false
+
+NavfnROS:
+  allow_unknown: false
+  default_tolerance: 0.2
+  visualize_potential: false
+
+RouteGlobalPlanner:
+  interpolation_resolution: 0.2
+  max_projection_error: 5.0
+  allow_reverse_plan: true
+  smooth_route: true
+  spline_tangent_scale: 0.35
+  # Keep patrol continuous when the robot starts or drifts a bit off the
+  # sampled route: instead of snapping straight back to the nearest projection,
+  # start with a short curved merge segment and then continue along the route.
+  soft_merge_enabled: true
+  soft_merge_min_error: 0.35
+  soft_merge_distance_gain: 2.0
+  soft_merge_min_entry_distance: 1.5
+  soft_merge_max_entry_distance: 6.0
+  soft_merge_heading_distance_gain: 1.8
+  soft_merge_handle_scale: 0.6
+  soft_merge_max_handle_distance: 3.5
+  global_frame: map

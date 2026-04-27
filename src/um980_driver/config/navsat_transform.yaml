@@ -1,0 +1,22 @@
+frequency: 30
+delay: 1.0
+magnetic_declination_radians: 0.0
+# The corrected IMU topic is converted to ROS ENU yaw before it reaches
+# navsat_transform, so the default offset here stays at zero. Launch files
+# still expose yaw_offset for quick experiments.
+yaw_offset: 0.0
+zero_altitude: true
+publish_filtered_gps: false
+broadcast_utm_transform: false
+broadcast_utm_transform_as_parent_frame: false
+
+# Prefer the corrected IMU heading by default. Launch files can still switch
+# back to odom yaw for comparison.
+use_odometry_yaw: false
+wait_for_datum: true
+# Fixed RTK datum captured on 2026-04-23 at the current test origin.
+# Format: [latitude_deg, longitude_deg, yaw_rad]. The third value is yaw,
+# not altitude. Keep yaw at 0.0 so rtk_map uses ENU east as +X; the
+# map <- rtk_map static transform handles the lidar-map rotation later.
+datum: [30.477984751567, 114.361160974800, 0.0]
+transform_timeout: 0.0

@@ -1,0 +1,37 @@
+local_odom_topic: /odometry/filtered
+rtk_odom_topic: /odometry/rtk_map
+lidar_odom_topic: /odometry/lidar_map
+lidar_status_topic: /lidar_localization/status
+rtk_fix_type_topic: /rtk/fix_type
+rtk_position_type_topic: /rtk/position_type
+
+output_topic: /odometry/global_nav
+status_topic: /global_localization/status
+
+map_frame: map
+odom_frame: odom
+base_link_frame: base_link
+publish_tf: true
+
+min_quality: 0.5
+source_timeout: 0.8
+status_timeout: 2.0
+local_interp_timeout: 0.2
+switch_cooldown: 2.0
+switch_hysteresis: 0.15
+preferred_source: rtk
+preferred_min_quality: 0.95
+fallback_source: lidar
+tie_breaker: rtk
+status_stamp_tolerance: 0.02
+max_switch_xy_delta: 0.8
+max_switch_yaw_delta_deg: 15.0
+smooth_switch_enabled: true
+switch_blend_duration: 2.0
+status_interval: 1.0
+tf_publish_rate: 30.0
+transform_time_offset: 0.1
+
+rtk_requires_status: true
+rtk_good_fix_types: [rtk_fixed]
+rtk_good_position_types: [NARROW_INT, L1_INT]

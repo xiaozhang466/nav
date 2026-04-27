@@ -1,0 +1,14 @@
+<launch>
+  <arg name="config" default="$(find um980_driver)/config/nav_health_monitor.yaml" />
+  <arg name="log_enabled" default="true" />
+  <arg name="log_dir" default="~/.ros/nav_health" />
+
+  <node pkg="um980_driver"
+        type="nav_health_monitor.py"
+        name="nav_health_monitor"
+        output="screen">
+    <rosparam file="$(arg config)" command="load" />
+    <param name="log_enabled" value="$(arg log_enabled)" />
+    <param name="log_dir" value="$(arg log_dir)" />
+  </node>
+</launch>

@@ -1,0 +1,10 @@
+<library path="lib/libroute_global_planner">
+  <class name="um980_driver/RouteGlobalPlanner"
+         type="um980_driver::RouteGlobalPlanner"
+         base_class_type="nav_core::BaseGlobalPlanner">
+    <description>
+      Global planner that projects start and goal onto an inspection waypoint
+      route and returns a dense plan along that route.
+    </description>
+  </class>
+</library>

@@ -1,0 +1,42 @@
+# Alignment estimator configuration
+# Controls online auto-calibration of map <-> rtk_map transform
+
+# ── Startup behavior ──
+# If true, publish cached TF at boot (for when relocalizer is enabled).
+# If false (default), withhold TF until alignment is verified — RTK blocked.
+publish_cached_immediately: false
+
+# ── Topics ──
+rtk_odom_topic: /odometry/rtk_map
+lidar_odom_topic: /odometry/lidar_map
+rtk_fix_type_topic: /rtk/fix_type
+lidar_status_topic: /lidar_localization/status
+
+# ── Frames ──
+parent_frame: map
+child_frame: rtk_map
+
+# ── Verification (check cached alignment at startup) ──
+verify_min_samples: 8        # need this many matched pairs to verify
+verify_min_travel: 3.0       # need this much travel (m) to verify
+verify_max_residual: 0.3     # cache is valid if RMSE < this (m)
+
+# ── Full estimation ──
+min_samples: 30              # minimum matched pairs for a new estimate
+min_travel_m: 15.0           # minimum travel distance (m)
+sample_spacing_m: 0.5        # minimum distance between kept samples
+max_time_delta: 0.15         # max time gap (s) for RTK/LiDAR matching
+max_accept_rmse: 0.15        # reject estimates with RMSE > this (m)
+
+# ── Auto-update safety ──
+max_auto_update_delta: 1.0   # warn (don't auto-update) if new alignment
+                             # differs by more than this (m) from current
+
+# ── Continuous monitoring ──
+update_interval: 300         # re-estimate every N seconds
+sliding_window_size: 200     # max samples kept in sliding window
+# ── Stabilization ──
+stabilization_delay: 15.0    # wait N seconds after LiDAR becomes OK
+                             # before collecting samples (let FAST converge)
+max_bad_estimates: 10        # after N consecutive high-RMSE estimates,
+                             # clear window and start fresh

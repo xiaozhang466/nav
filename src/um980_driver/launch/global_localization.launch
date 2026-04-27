@@ -1,0 +1,106 @@
+<launch>
+  <arg name="launch_rtk_imu" default="true" />
+  <arg name="launch_rtk" default="$(arg launch_rtk_imu)" />
+  <arg name="launch_imu_driver" default="$(arg launch_rtk_imu)" />
+  <arg name="launch_local_ekf" default="true" />
+  <arg name="launch_imu_heading_correction" default="true" />
+
+  <arg name="rtk_imu_bringup" default="$(find um980_driver)/launch/rtk_imu_bringup.launch" />
+  <arg name="local_ekf_bringup" default="$(find um980_driver)/launch/local_ekf.launch" />
+  <arg name="imu_heading_correction_bringup" default="$(find um980_driver)/launch/imu_heading_correction.launch" />
+  <arg name="navsat_config" default="$(find um980_driver)/config/navsat_transform.yaml" />
+  <arg name="yaw_offset" default="0.0" />
+  <arg name="navsat_use_odometry_yaw" default="false" />
+  <arg name="navsat_imu_topic" default="/IMU_data_enu" />
+  <arg name="imu_heading_input_topic" default="/IMU_data" />
+  <arg name="imu_heading_output_topic" default="/IMU_data_enu" />
+  <arg name="imu_heading_frame_id" default="" />
+  <arg name="imu_heading_north_to_east_deg" default="90.0" />
+  <arg name="imu_heading_yaw_bias_deg" default="11.7" />
+  <arg name="map_frame" default="rtk_map" />
+  <arg name="odom_frame" default="odom" />
+  <arg name="base_link_frame" default="base_link" />
+  <arg name="global_yaw_source" default="imu" />
+  <arg name="global_yaw_topic" default="$(arg navsat_imu_topic)" />
+  <arg name="gps_timeout" default="1.0" />
+  <arg name="global_nav_output_topic" default="/odometry/global_nav" />
+  <arg name="global_nav_correction_alpha" default="0.25" />
+
+  <arg name="local_output_topic" default="/odometry/filtered" />
+  <arg name="gps_odom_topic" default="/odometry/gps" />
+  <arg name="global_output_topic" default="/odometry/global" />
+  <arg name="publish_global_tf" default="true" />
+
+  <include file="$(arg rtk_imu_bringup)">
+    <arg name="launch_rtk" value="$(arg launch_rtk)" />
+    <arg name="launch_imu" value="$(arg launch_imu_driver)" />
+  </include>
+
+  <include if="$(arg launch_imu_heading_correction)" file="$(arg imu_heading_correction_bringup)">
+    <arg name="input_topic" value="$(arg imu_heading_input_topic)" />
+    <arg name="output_topic" value="$(arg imu_heading_output_topic)" />
+    <arg name="frame_id" value="$(arg imu_heading_frame_id)" />
+    <arg name="north_to_east_deg" value="$(arg imu_heading_north_to_east_deg)" />
+    <arg name="yaw_bias_deg" value="$(arg imu_heading_yaw_bias_deg)" />
+  </include>
+
+  <include if="$(arg launch_local_ekf)" file="$(arg local_ekf_bringup)">
+    <arg name="output_topic" value="$(arg local_output_topic)" />
+    <arg name="publish_tf" value="true" />
+  </include>
+
+  <node
+    pkg="robot_localization"
+    type="navsat_transform_node"
+    name="navsat_transform"
+    clear_params="true"
+    output="screen">
+    <rosparam command="load" file="$(arg navsat_config)" />
+    <param name="yaw_offset" value="$(arg yaw_offset)" />
+    <param name="use_odometry_yaw" value="$(arg navsat_use_odometry_yaw)" />
+    <remap from="gps/fix" to="/rtk/fix" />
+    <remap from="odometry/filtered" to="$(arg local_output_topic)" />
+    <remap from="odometry/gps" to="$(arg gps_odom_topic)" />
+    <remap from="imu/data" to="$(arg navsat_imu_topic)" />
+    <remap from="gps/filtered" to="/rtk/fix_filtered" />
+  </node>
+
+  <node
+    pkg="um980_driver"
+    type="compose_global_odom.py"
+    name="compose_global_odom"
+    output="screen">
+    <param name="local_odom_topic" value="$(arg local_output_topic)" />
+    <param name="gps_odom_topic" value="$(arg gps_odom_topic)" />
+    <param name="output_topic" value="$(arg global_output_topic)" />
+    <param name="position_source" value="gps" />
+    <param name="yaw_source" value="$(arg global_yaw_source)" />
+    <param name="imu_topic" value="$(arg global_yaw_topic)" />
+    <param name="map_frame" value="$(arg map_frame)" />
+    <param name="odom_frame" value="$(arg odom_frame)" />
+    <param name="base_link_frame" value="$(arg base_link_frame)" />
+    <param name="gps_timeout" value="$(arg gps_timeout)" />
+    <param name="publish_tf" value="false" />
+    <param name="zero_altitude" value="true" />
+  </node>
+
+  <node
+    pkg="um980_driver"
+    type="compose_global_odom.py"
+    name="compose_global_odom_nav"
+    output="screen">
+    <param name="local_odom_topic" value="$(arg local_output_topic)" />
+    <param name="gps_odom_topic" value="$(arg gps_odom_topic)" />
+    <param name="output_topic" value="$(arg global_nav_output_topic)" />
+    <param name="position_source" value="local_plus_xy_correction" />
+    <param name="correction_alpha" value="$(arg global_nav_correction_alpha)" />
+    <param name="yaw_source" value="$(arg global_yaw_source)" />
+    <param name="imu_topic" value="$(arg global_yaw_topic)" />
+    <param name="map_frame" value="$(arg map_frame)" />
+    <param name="odom_frame" value="$(arg odom_frame)" />
+    <param name="base_link_frame" value="$(arg base_link_frame)" />
+    <param name="gps_timeout" value="$(arg gps_timeout)" />
+    <param name="publish_tf" value="$(arg publish_global_tf)" />
+    <param name="zero_altitude" value="true" />
+  </node>
+</launch>

@@ -1,0 +1,16 @@
+<launch>
+  <arg name="config" default="$(find um980_driver)/config/ekf_local.yaml" />
+  <arg name="output_topic" default="/odometry/filtered" />
+  <arg name="publish_tf" default="true" />
+
+  <node
+    pkg="robot_localization"
+    type="ekf_localization_node"
+    name="ekf_local_odom"
+    clear_params="true"
+    output="screen">
+    <rosparam command="load" file="$(arg config)" />
+    <param name="publish_tf" value="$(arg publish_tf)" />
+    <remap from="odometry/filtered" to="$(arg output_topic)" />
+  </node>
+</launch>

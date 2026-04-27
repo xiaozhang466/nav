@@ -1,0 +1,101 @@
+<launch>
+  <!--
+    One-shot bringup for outdoor/indoor inspection navigation.
+
+    Starts:
+      - Lslidar C16 driver/decoder
+      - Ranger chassis odometry
+      - FAST-LOCALIZATION
+      - RTK + IMU + local EKF + hybrid LiDAR/RTK localization
+      - map_server + move_base + cmd_vel smoother + RViz
+      - waypoint patrol auto-start
+      - RTK-to-LiDAR automatic relocalization
+      - passive navigation health monitor + CSV diagnostics
+  -->
+
+  <arg name="launch_lidar" default="true" />
+  <arg name="launch_chassis" default="true" />
+  <arg name="launch_fast_localization" default="true" />
+  <arg name="launch_navigation" default="true" />
+  <arg name="launch_relocalizer" default="true" />
+  <arg name="launch_nav_health" default="true" />
+
+  <arg name="rviz" default="true" />
+  <arg name="lidar_rviz" default="false" />
+  <arg name="fast_rviz" default="true" />
+
+  <arg name="launch_rtk" default="true" />
+  <arg name="launch_imu_driver" default="true" />
+  <arg name="launch_imu_heading_correction" default="true" />
+
+  <arg name="auto_start_waypoint_patrol" default="true" />
+  <arg name="loop_waypoint_patrol" default="true" />
+  <arg name="waypoints_file" default="$(find um980_driver)/waypoints/inspection_waypoints.yaml" />
+
+  <arg name="map_file" default="$(find um980_driver)/maps/nav_map.yaml" />
+  <arg name="base_global_planner" default="um980_driver/RouteGlobalPlanner" />
+  <arg name="use_cmd_vel_smoother" default="true" />
+
+  <arg name="ranger_port_name" default="can0" />
+  <arg name="ranger_robot_model" default="ranger_mini_v2" />
+  <arg name="ranger_odom_frame" default="odom" />
+  <arg name="ranger_base_frame" default="base_link" />
+  <arg name="ranger_odom_topic_name" default="odom" />
+  <arg name="ranger_publish_odom_tf" default="false" />
+
+  <arg name="relocalizer_yaw_source" default="rtk" />
+  <arg name="relocalizer_auto_enabled" default="true" />
+  <arg name="relocalizer_auto_min_xy_delta" default="1.0" />
+  <arg name="relocalizer_auto_min_yaw_delta_deg" default="25.0" />
+  <arg name="relocalizer_cooldown" default="10.0" />
+
+  <arg name="nav_health_config" default="$(find um980_driver)/config/nav_health_monitor.yaml" />
+  <arg name="nav_health_log_enabled" default="true" />
+  <arg name="nav_health_log_dir" default="~/.ros/nav_health" />
+
+  <include if="$(arg launch_lidar)" file="$(find lslidar_c16_decoder)/launch/lslidar_c16.launch">
+    <arg name="rviz" value="$(arg lidar_rviz)" />
+  </include>
+
+  <include if="$(arg launch_chassis)" file="$(find ranger_bringup)/launch/ranger_mini_v2.launch">
+    <arg name="port_name" value="$(arg ranger_port_name)" />
+    <arg name="robot_model" value="$(arg ranger_robot_model)" />
+    <arg name="odom_frame" value="$(arg ranger_odom_frame)" />
+    <arg name="base_frame" value="$(arg ranger_base_frame)" />
+    <arg name="odom_topic_name" value="$(arg ranger_odom_topic_name)" />
+    <arg name="publish_odom_tf" value="$(arg ranger_publish_odom_tf)" />
+  </include>
+
+  <include if="$(arg launch_fast_localization)" file="$(find fast_localization)/launch/localization_lslidar_C16.launch">
+    <arg name="rviz" value="$(arg fast_rviz)" />
+    <arg name="publish_tf" value="false" />
+  </include>
+
+  <include if="$(arg launch_navigation)" file="$(find um980_driver)/launch/hybrid_navigation_bringup.launch">
+    <arg name="launch_rtk" value="$(arg launch_rtk)" />
+    <arg name="launch_imu_driver" value="$(arg launch_imu_driver)" />
+    <arg name="launch_imu_heading_correction" value="$(arg launch_imu_heading_correction)" />
+    <arg name="rviz" value="$(arg rviz)" />
+    <arg name="map_file" value="$(arg map_file)" />
+    <arg name="base_global_planner" value="$(arg base_global_planner)" />
+    <arg name="use_cmd_vel_smoother" value="$(arg use_cmd_vel_smoother)" />
+    <arg name="launch_waypoint_patrol" value="true" />
+    <arg name="auto_start_waypoint_patrol" value="$(arg auto_start_waypoint_patrol)" />
+    <arg name="loop_waypoint_patrol" value="$(arg loop_waypoint_patrol)" />
+    <arg name="waypoints_file" value="$(arg waypoints_file)" />
+  </include>
+
+  <include if="$(arg launch_relocalizer)" file="$(find um980_driver)/launch/rtk_lidar_relocalizer.launch">
+    <arg name="yaw_source" value="$(arg relocalizer_yaw_source)" />
+    <arg name="auto_enabled" value="$(arg relocalizer_auto_enabled)" />
+    <arg name="auto_min_xy_delta" value="$(arg relocalizer_auto_min_xy_delta)" />
+    <arg name="auto_min_yaw_delta_deg" value="$(arg relocalizer_auto_min_yaw_delta_deg)" />
+    <arg name="relocalize_cooldown" value="$(arg relocalizer_cooldown)" />
+  </include>
+
+  <include if="$(arg launch_nav_health)" file="$(find um980_driver)/launch/nav_health_monitor.launch">
+    <arg name="config" value="$(arg nav_health_config)" />
+    <arg name="log_enabled" value="$(arg nav_health_log_enabled)" />
+    <arg name="log_dir" value="$(arg nav_health_log_dir)" />
+  </include>
+</launch>

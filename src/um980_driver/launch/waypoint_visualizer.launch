@@ -1,0 +1,18 @@
+<launch>
+  <arg name="waypoints_file" default="$(find um980_driver)/waypoints/inspection_waypoints.yaml" />
+  <arg name="frame_id" default="" />
+  <arg name="path_topic" default="/waypoints/path" />
+  <arg name="marker_topic" default="/waypoints/markers" />
+  <arg name="publish_rate" default="1.0" />
+
+  <node pkg="um980_driver"
+        type="waypoint_visualizer.py"
+        name="waypoint_visualizer"
+        output="screen">
+    <param name="waypoints_file" value="$(arg waypoints_file)" />
+    <param name="frame_id" value="$(arg frame_id)" />
+    <param name="path_topic" value="$(arg path_topic)" />
+    <param name="marker_topic" value="$(arg marker_topic)" />
+    <param name="publish_rate" value="$(arg publish_rate)" />
+  </node>
+</launch>

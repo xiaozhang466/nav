@@ -1,0 +1,37 @@
+<launch>
+  <arg name="config" default="$(find um980_driver)/config/rtk_lidar_relocalizer.yaml" />
+  <arg name="rtk_odom_topic" default="/odometry/rtk_map" />
+  <arg name="lidar_odom_topic" default="/odometry/lidar_map" />
+  <arg name="lidar_status_topic" default="/lidar_localization/status" />
+  <arg name="initialpose_topic" default="/initialpose" />
+  <arg name="map_frame" default="map" />
+  <arg name="yaw_source" default="rtk" />
+  <arg name="auto_enabled" default="true" />
+  <arg name="auto_check_rate" default="1.0" />
+  <arg name="auto_min_xy_delta" default="1.0" />
+  <arg name="auto_min_yaw_delta_deg" default="25.0" />
+  <arg name="auto_relocalize_on_lidar_unhealthy" default="true" />
+  <arg name="relocalize_cooldown" default="10.0" />
+  <arg name="post_relocalize_grace_period" default="15.0" />
+
+  <node
+    pkg="um980_driver"
+    type="rtk_lidar_relocalizer.py"
+    name="rtk_lidar_relocalizer"
+    output="screen">
+    <rosparam command="load" file="$(arg config)" />
+    <param name="rtk_odom_topic" value="$(arg rtk_odom_topic)" />
+    <param name="lidar_odom_topic" value="$(arg lidar_odom_topic)" />
+    <param name="lidar_status_topic" value="$(arg lidar_status_topic)" />
+    <param name="initialpose_topic" value="$(arg initialpose_topic)" />
+    <param name="map_frame" value="$(arg map_frame)" />
+    <param name="yaw_source" value="$(arg yaw_source)" />
+    <param name="auto_enabled" value="$(arg auto_enabled)" />
+    <param name="auto_check_rate" value="$(arg auto_check_rate)" />
+    <param name="auto_min_xy_delta" value="$(arg auto_min_xy_delta)" />
+    <param name="auto_min_yaw_delta_deg" value="$(arg auto_min_yaw_delta_deg)" />
+    <param name="auto_relocalize_on_lidar_unhealthy" value="$(arg auto_relocalize_on_lidar_unhealthy)" />
+    <param name="relocalize_cooldown" value="$(arg relocalize_cooldown)" />
+    <param name="post_relocalize_grace_period" value="$(arg post_relocalize_grace_period)" />
+  </node>
+</launch>

@@ -1,0 +1,231 @@
+Panels:
+  - Class: rviz/Displays
+    Help Height: 78
+    Name: Displays
+    Property Tree Widget:
+      Expanded:
+        - /Global Options
+        - /TF
+        - /Map
+        - /RTK Global Nav
+        - /Waypoint Markers
+        - /Nav Health
+        - /Waypoint Route
+        - /Global Plan
+        - /Local Plan
+      Splitter Ratio: 0.5
+    Tree Height: 620
+Visualization Manager:
+  Class: ""
+  Displays:
+    - Alpha: 0.5
+      Cell Size: 1
+      Class: rviz/Grid
+      Color: 160; 160; 160
+      Enabled: true
+      Line Style:
+        Line Width: 0.03
+        Value: Lines
+      Name: Grid
+      Plane: XY
+      Plane Cell Count: 20
+      Reference Frame: <Fixed Frame>
+      Value: true
+    - Class: rviz/Map
+      Color Scheme: map
+      Draw Behind: false
+      Enabled: true
+      Name: Map
+      Topic: /map
+      Unreliable: false
+      Use Timestamp: false
+      Value: true
+    - Class: rviz/TF
+      Enabled: true
+      Frame Timeout: 15
+      Marker Scale: 0.8
+      Name: TF
+      Show Arrows: true
+      Show Axes: true
+      Show Names: true
+      Update Interval: 0
+      Value: true
+    - Angle Tolerance: 0.1
+      Class: rviz/Odometry
+      Color: 255; 220; 0
+      Enabled: true
+      Keep: 100
+      Length: 0.8
+      Name: RTK Global Nav
+      Position Tolerance: 0.1
+      Shape: Arrow
+      Topic: /odometry/global_nav
+      Unreliable: false
+      Value: true
+    - Angle Tolerance: 0.1
+      Class: rviz/Odometry
+      Color: 0; 180; 255
+      Enabled: false
+      Keep: 100
+      Length: 0.6
+      Name: RTK Global Raw
+      Position Tolerance: 0.1
+      Shape: Arrow
+      Topic: /odometry/global
+      Unreliable: false
+      Value: false
+    - Alpha: 1
+      Buffer Length: 1
+      Class: rviz/Path
+      Color: 0; 255; 0
+      Enabled: true
+      Head Diameter: 0.08
+      Head Length: 0.12
+      Length: 0.3
+      Line Style: Lines
+      Line Width: 0.05
+      Name: Global Plan
+      Offset:
+        X: 0
+        Y: 0
+        Z: 0
+      Pose Style: None
+      Radius: 0.03
+      Shaft Diameter: 0.03
+      Shaft Length: 0.1
+      Topic: /move_base/NavfnROS/plan
+      Unreliable: false
+      Value: true
+    - Alpha: 1
+      Buffer Length: 1
+      Class: rviz/Path
+      Color: 0; 170; 255
+      Enabled: true
+      Head Diameter: 0.08
+      Head Length: 0.12
+      Length: 0.3
+      Line Style: Lines
+      Line Width: 0.05
+      Name: Local Plan
+      Offset:
+        X: 0
+        Y: 0
+        Z: 0
+      Pose Style: None
+      Radius: 0.03
+      Shaft Diameter: 0.03
+      Shaft Length: 0.1
+      Topic: /move_base/DWAPlannerROS/local_plan
+      Unreliable: false
+      Value: true
+    - Alpha: 1
+      Buffer Length: 1
+      Class: rviz/Path
+      Color: 0; 255; 255
+      Enabled: true
+      Head Diameter: 0.08
+      Head Length: 0.12
+      Length: 0.3
+      Line Style: Lines
+      Line Width: 0.08
+      Name: Waypoint Route
+      Offset:
+        X: 0
+        Y: 0
+        Z: 0
+      Pose Style: None
+      Radius: 0.03
+      Shaft Diameter: 0.03
+      Shaft Length: 0.1
+      Topic: /waypoints/path
+      Unreliable: false
+      Value: true
+    - Class: rviz/MarkerArray
+      Enabled: true
+      Marker Topic: /waypoints/markers
+      Name: Waypoint Markers
+      Namespaces:
+        waypoint_heading: true
+        waypoint_labels: true
+        waypoint_points: true
+        waypoint_route: true
+      Queue Size: 100
+      Value: true
+    - Class: rviz/MarkerArray
+      Enabled: true
+      Marker Topic: /nav_health/markers
+      Name: Nav Health
+      Namespaces:
+        nav_health: true
+      Queue Size: 10
+      Value: true
+    - Alpha: 0.7
+      Class: rviz/Map
+      Color Scheme: costmap
+      Draw Behind: false
+      Enabled: false
+      Name: Global Costmap
+      Topic: /move_base/global_costmap/costmap
+      Unreliable: false
+      Use Timestamp: false
+      Value: false
+    - Alpha: 0.7
+      Class: rviz/Map
+      Color Scheme: costmap
+      Draw Behind: false
+      Enabled: false
+      Name: Local Costmap
+      Topic: /move_base/local_costmap/costmap
+      Unreliable: false
+      Use Timestamp: false
+      Value: false
+  Enabled: true
+  Global Options:
+    Background Color: 48; 48; 48
+    Fixed Frame: map
+    Frame Rate: 30
+  Name: root
+  Tools:
+    - Class: rviz/Interact
+      Hide Inactive Objects: true
+    - Class: rviz/MoveCamera
+    - Class: rviz/Select
+    - Class: rviz/FocusCamera
+    - Class: rviz/Measure
+    - Class: rviz/SetInitialPose
+      Topic: /initialpose
+    - Class: rviz/SetGoal
+      Topic: /move_base_simple/goal
+    - Class: rviz/PublishPoint
+      Single click: true
+      Topic: /clicked_point
+  Value: true
+  Views:
+    Current:
+      Class: rviz/Orbit
+      Distance: 30
+      Enable Stereo Rendering:
+        Stereo Eye Separation: 0.06
+        Stereo Focal Distance: 1
+        Swap Stereo Eyes: false
+        Value: false
+      Focal Point:
+        X: 0
+        Y: 0
+        Z: 0
+      Name: Current View
+      Near Clip Distance: 0.01
+      Pitch: 1.0
+      Target Frame: map
+      Yaw: 0
+    Saved: ~
+Window Geometry:
+  Displays:
+    collapsed: false
+  Height: 850
+  Hide Left Dock: false
+  Hide Right Dock: false
+  QMainWindow State: ""
+  Width: 1280
+  X: 80
+  Y: 60

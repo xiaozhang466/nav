@@ -1,0 +1,31 @@
+<launch>
+	<arg name="imu_package" default="spec" doc="package type [spec,0x91,0x62]"/>
+	<arg name="serial_port" default="/dev/ttyimu"/>
+	<arg name="baud" default="921600"/>
+	<arg name="frame_id" default="base_link"/>
+	<arg name="timer_period" default="0.0025"/>
+	<arg name="orientation_covariance" default="[-1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]"/>
+	<arg name="angular_velocity_covariance" default="[0.0001, 0.0, 0.0, 0.0, 0.0001, 0.0, 0.0, 0.0, 0.0001]"/>
+	<arg name="linear_acceleration_covariance" default="[0.01, 0.0, 0.0, 0.0, 0.01, 0.0, 0.0, 0.0, 0.01]"/>
+	<arg name="enable_debug_echo" default="true"/>
+	
+	<include file="$(find imu_launch)/launch/imu_$(arg imu_package)_msg.launch">
+		<arg name="serial_port" value="$(arg serial_port)"/>
+		<arg name="baud" value="$(arg baud)"/>
+		<arg name="frame_id" value="$(arg frame_id)"/>
+		<arg name="timer_period" value="$(arg timer_period)"/>
+		<arg name="orientation_covariance" value="$(arg orientation_covariance)"/>
+		<arg name="angular_velocity_covariance" value="$(arg angular_velocity_covariance)"/>
+		<arg name="linear_acceleration_covariance" value="$(arg linear_acceleration_covariance)"/>
+		<arg name="enable_debug_echo" value="$(arg enable_debug_echo)"/>
+	</include>
+	
+	<include file="$(find lslidar_c16_decoder)/launch/lslidar_c16.launch"/>
+	
+	<include file="$(find greencar_can_test_3)/launch/greencar_control.launch"/>
+	
+	<include file="$(find hdl_localization)/launch/hdl_localization.launch"/>
+	
+	<include file="$(find movebase_test)/launch/movebase_local.launch"/>
+	
+</launch>

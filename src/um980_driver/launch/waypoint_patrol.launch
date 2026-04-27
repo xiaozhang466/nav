@@ -1,0 +1,24 @@
+<launch>
+  <arg name="config_file" default="$(find um980_driver)/config/waypoint_patrol.yaml" />
+  <arg name="waypoints_file" default="$(find um980_driver)/waypoints/inspection_waypoints.yaml" />
+  <arg name="frame_id" default="map" />
+  <arg name="base_frame" default="base_link" />
+  <arg name="move_base_action" default="/move_base" />
+  <arg name="auto_start" default="false" />
+  <arg name="loop" default="true" />
+  <arg name="ping_pong" default="true" />
+
+  <node pkg="um980_driver"
+        type="waypoint_patrol_node.py"
+        name="waypoint_patrol"
+        output="screen">
+    <rosparam file="$(arg config_file)" command="load" />
+    <param name="waypoints_file" value="$(arg waypoints_file)" />
+    <param name="frame_id" value="$(arg frame_id)" />
+    <param name="base_frame" value="$(arg base_frame)" />
+    <param name="move_base_action" value="$(arg move_base_action)" />
+    <param name="auto_start" value="$(arg auto_start)" />
+    <param name="loop" value="$(arg loop)" />
+    <param name="ping_pong" value="$(arg ping_pong)" />
+  </node>
+</launch>

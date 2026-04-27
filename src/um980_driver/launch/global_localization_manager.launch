@@ -1,0 +1,28 @@
+<launch>
+  <arg name="config" default="$(find um980_driver)/config/global_localization_manager.yaml" />
+  <arg name="local_odom_topic" default="/odometry/filtered" />
+  <arg name="rtk_odom_topic" default="/odometry/rtk_map" />
+  <arg name="lidar_odom_topic" default="/odometry/lidar_map" />
+  <arg name="output_topic" default="/odometry/global_nav" />
+  <arg name="status_topic" default="/global_localization/status" />
+  <arg name="map_frame" default="map" />
+  <arg name="odom_frame" default="odom" />
+  <arg name="base_link_frame" default="base_link" />
+  <arg name="publish_tf" default="true" />
+
+  <node pkg="um980_driver"
+        type="global_localization_manager.py"
+        name="global_localization_manager"
+        output="screen">
+    <rosparam file="$(arg config)" command="load" />
+    <param name="local_odom_topic" value="$(arg local_odom_topic)" />
+    <param name="rtk_odom_topic" value="$(arg rtk_odom_topic)" />
+    <param name="lidar_odom_topic" value="$(arg lidar_odom_topic)" />
+    <param name="output_topic" value="$(arg output_topic)" />
+    <param name="status_topic" value="$(arg status_topic)" />
+    <param name="map_frame" value="$(arg map_frame)" />
+    <param name="odom_frame" value="$(arg odom_frame)" />
+    <param name="base_link_frame" value="$(arg base_link_frame)" />
+    <param name="publish_tf" value="$(arg publish_tf)" />
+  </node>
+</launch>

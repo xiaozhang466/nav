@@ -1,0 +1,34 @@
+input_topic: /Odometry
+local_odom_topic: /odometry/filtered
+output_topic: /odometry/lidar_map
+status_topic: /lidar_localization/status
+
+input_frame: camera_init
+input_child_frame: body
+output_frame: map
+output_child_frame: base_link
+assume_body_is_base_link: true
+strict_input_frame: true
+flatten_to_2d: true
+
+nominal_xy_covariance: 0.0025
+nominal_yaw_covariance: 0.0004
+bad_xy_covariance: 0.25
+bad_yaw_covariance: 0.04
+
+max_consistency_xy_error: 0.20
+max_consistency_yaw_error_deg: 12.0
+max_lidar_step: 1.0
+max_lidar_yaw_step_deg: 35.0
+recovery_enabled: true
+recovery_required_samples: 8
+recovery_max_consistency_xy_error: 0.25
+recovery_max_consistency_yaw_error_deg: 15.0
+recovery_max_lidar_step: 0.6
+recovery_max_lidar_yaw_step_deg: 30.0
+recovery_min_quality: 0.5
+recovery_reasons: [lidar_jump, xy_inconsistent, yaw_inconsistent]
+max_abs_pose_xy: 500.0
+max_abs_input_z: 50.0
+stale_timeout: 0.5
+status_interval: 1.0

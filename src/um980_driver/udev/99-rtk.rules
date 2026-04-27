@@ -1,0 +1,3 @@
+# Stable device name for the UM980 RTK receiver.
+# This host currently exposes the RTK as a CH341 USB-UART bridge.
+SUBSYSTEM=="tty", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", SYMLINK+="ttyrtk", MODE="0666"

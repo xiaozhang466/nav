@@ -1,0 +1,69 @@
+# Catkin workspace build outputs
+/build/
+/devel/
+/install/
+/.catkin_tools/
+/catkin_generated/
+
+# CMake and compiler outputs
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+CTestTestfile.cmake
+Makefile
+*.cmake
+*.o
+*.so
+*.so.*
+*.a
+*.d
+*.gcda
+*.gcno
+
+# Python cache and packaging artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+dist/
+
+# ROS runtime logs, test outputs, and recorded data
+/.ros/
+/log/
+/logs/
+test_results/
+*.log
+*.bag
+*.bag.active
+*.db3
+*.mcap
+*.csv
+
+# Generated or bulky mapping/localization data
+*.pcd
+*.ply
+*.las
+*.laz
+*.bt
+*.pcap
+
+# Local RTK/NTRIP credentials
+/src/um980_driver/config/rtk_client.ini
+!src/um980_driver/config/rtk_client.example.ini
+
+# Local editor and OS files
+/.codex
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Nested repository metadata from vendored packages. Remove these directories
+# or convert them to submodules before adding the whole workspace.
+**/.git/

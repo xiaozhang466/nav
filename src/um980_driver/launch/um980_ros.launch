@@ -1,0 +1,21 @@
+<launch>
+  <arg name="config" default="$(find um980_driver)/config/rtk_client.ini" />
+  <arg name="frame_id" default="gps_link" />
+  <arg name="um980_status_interval" default="1.0" />
+  <arg name="bad_gga_warn_interval" default="0.0" />
+  <arg name="status_interval" default="5.0" />
+
+  <node
+    pkg="um980_driver"
+    type="um980_ros_node.py"
+    name="um980_ros_node"
+    output="screen"
+    respawn="true"
+    respawn_delay="1.0">
+    <param name="config" value="$(arg config)" />
+    <param name="frame_id" value="$(arg frame_id)" />
+    <param name="um980_status_interval" value="$(arg um980_status_interval)" />
+    <param name="bad_gga_warn_interval" value="$(arg bad_gga_warn_interval)" />
+    <param name="status_interval" value="$(arg status_interval)" />
+  </node>
+</launch>

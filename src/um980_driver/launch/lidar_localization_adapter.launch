@@ -1,0 +1,22 @@
+<launch>
+  <arg name="config" default="$(find um980_driver)/config/lidar_localization_adapter.yaml" />
+  <arg name="input_topic" default="/Odometry" />
+  <arg name="local_odom_topic" default="/odometry/filtered" />
+  <arg name="output_topic" default="/odometry/lidar_map" />
+  <arg name="status_topic" default="/lidar_localization/status" />
+  <arg name="output_frame" default="map" />
+  <arg name="output_child_frame" default="base_link" />
+
+  <node pkg="um980_driver"
+        type="lidar_localization_adapter.py"
+        name="lidar_localization_adapter"
+        output="screen">
+    <rosparam file="$(arg config)" command="load" />
+    <param name="input_topic" value="$(arg input_topic)" />
+    <param name="local_odom_topic" value="$(arg local_odom_topic)" />
+    <param name="output_topic" value="$(arg output_topic)" />
+    <param name="status_topic" value="$(arg status_topic)" />
+    <param name="output_frame" value="$(arg output_frame)" />
+    <param name="output_child_frame" value="$(arg output_child_frame)" />
+  </node>
+</launch>

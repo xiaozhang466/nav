@@ -1,0 +1,165 @@
+<launch>
+  <!--
+    Navigation bringup: localization + map + move_base + patrol.
+
+    Replaces the old hybrid_localization / rtk_aligned_localization /
+    map_rtk_alignment / map_server intermediary layers with a single flat
+    launch file.
+  -->
+
+  <!-- ── top-level switches ── -->
+  <arg name="launch_localization" default="true" />
+  <arg name="launch_map_server" default="true" />
+  <arg name="launch_move_base" default="true" />
+  <arg name="launch_waypoint_visualizer" default="true" />
+  <arg name="launch_waypoint_patrol" default="false" />
+  <arg name="rviz" default="true" />
+
+  <!-- ── sensor / localization switches ── -->
+  <arg name="launch_rtk_imu" default="true" />
+  <arg name="launch_rtk" default="$(arg launch_rtk_imu)" />
+  <arg name="launch_imu_driver" default="$(arg launch_rtk_imu)" />
+  <arg name="launch_local_ekf" default="true" />
+  <arg name="launch_imu_heading_correction" default="true" />
+  <arg name="launch_lidar_adapter" default="true" />
+  <arg name="launch_manager" default="true" />
+
+  <!-- ── patrol switches ── -->
+  <arg name="auto_start_waypoint_patrol" default="false" />
+  <arg name="loop_waypoint_patrol" default="false" />
+
+  <!-- ── file / path args ── -->
+  <arg name="move_base_launch" default="$(find um980_driver)/launch/rtk_move_base.launch" />
+  <arg name="waypoint_visualizer_launch" default="$(find um980_driver)/launch/waypoint_visualizer.launch" />
+  <arg name="waypoint_patrol_launch" default="$(find um980_driver)/launch/waypoint_patrol.launch" />
+  <arg name="rviz_config" default="$(find um980_driver)/config/rtk_nav/rtk_navigation.rviz" />
+  <arg name="config_dir" default="$(find um980_driver)/config/rtk_nav" />
+  <arg name="waypoints_file" default="$(find um980_driver)/waypoints/inspection_waypoints.yaml" />
+  <arg name="base_global_planner" default="um980_driver/RouteGlobalPlanner" />
+  <arg name="map_file" default="$(find um980_driver)/maps/nav_map.yaml" />
+  <arg name="map_rtk_alignment_config" default="$(find um980_driver)/config/map_rtk_alignment.yaml" />
+
+  <!-- ── topic / frame args ── -->
+  <arg name="cmd_vel_topic" default="/cmd_vel" />
+  <arg name="move_base_cmd_vel_topic" default="/cmd_vel_nav" />
+  <arg name="use_cmd_vel_smoother" default="true" />
+  <arg name="map_frame" default="map" />
+  <arg name="rtk_map_frame" default="rtk_map" />
+  <arg name="odom_frame" default="odom" />
+  <arg name="base_link_frame" default="base_link" />
+  <arg name="local_odom_topic" default="/odometry/filtered" />
+  <arg name="rtk_odom_topic" default="/odometry/rtk_map" />
+  <arg name="lidar_odom_topic" default="/odometry/lidar_map" />
+  <arg name="global_nav_output_topic" default="/odometry/global_nav" />
+  <arg name="publish_global_tf" default="true" />
+
+  <!-- ================================================================== -->
+  <!-- Localization (inlined from hybrid_localization / rtk_aligned)       -->
+  <!-- ================================================================== -->
+  <group if="$(arg launch_localization)">
+
+    <!-- map ↔ rtk_map alignment (auto-calibrating) -->
+    <!-- Does NOT publish TF until alignment is verified, so RTK is   -->
+    <!-- blocked in global_localization_manager until then (LiDAR only). -->
+    <node pkg="um980_driver"
+          type="alignment_estimator.py"
+          name="map_rtk_alignment"
+          clear_params="true"
+          output="screen">
+      <param name="alignment_file" value="$(arg map_rtk_alignment_config)" />
+      <rosparam file="$(find um980_driver)/config/alignment_estimator.yaml" command="load" />
+    </node>
+
+    <!-- RTK + IMU + EKF + navsat + compose_global_odom -->
+    <include file="$(find um980_driver)/launch/global_localization.launch">
+      <arg name="launch_rtk_imu" value="$(arg launch_rtk_imu)" />
+      <arg name="launch_rtk" value="$(arg launch_rtk)" />
+      <arg name="launch_imu_driver" value="$(arg launch_imu_driver)" />
+      <arg name="launch_local_ekf" value="$(arg launch_local_ekf)" />
+      <arg name="launch_imu_heading_correction" value="$(arg launch_imu_heading_correction)" />
+      <arg name="map_frame" value="$(arg rtk_map_frame)" />
+      <arg name="odom_frame" value="$(arg odom_frame)" />
+      <arg name="base_link_frame" value="$(arg base_link_frame)" />
+      <arg name="global_nav_output_topic" value="$(arg rtk_odom_topic)" />
+      <arg name="publish_global_tf" value="false" />
+    </include>
+
+    <!-- LiDAR localization adapter -->
+    <include if="$(arg launch_lidar_adapter)" file="$(find um980_driver)/launch/lidar_localization_adapter.launch">
+      <arg name="local_odom_topic" value="$(arg local_odom_topic)" />
+      <arg name="output_topic" value="$(arg lidar_odom_topic)" />
+      <arg name="output_frame" value="$(arg map_frame)" />
+      <arg name="output_child_frame" value="$(arg base_link_frame)" />
+    </include>
+
+    <!-- Global localization manager (RTK / LiDAR source switch) -->
+    <include if="$(arg launch_manager)" file="$(find um980_driver)/launch/global_localization_manager.launch">
+      <arg name="local_odom_topic" value="$(arg local_odom_topic)" />
+      <arg name="rtk_odom_topic" value="$(arg rtk_odom_topic)" />
+      <arg name="lidar_odom_topic" value="$(arg lidar_odom_topic)" />
+      <arg name="output_topic" value="$(arg global_nav_output_topic)" />
+      <arg name="map_frame" value="$(arg map_frame)" />
+      <arg name="odom_frame" value="$(arg odom_frame)" />
+      <arg name="base_link_frame" value="$(arg base_link_frame)" />
+      <arg name="publish_tf" value="$(arg publish_global_tf)" />
+    </include>
+
+  </group>
+
+  <!-- ================================================================== -->
+  <!-- Map server (inlined from map_server.launch)                        -->
+  <!-- ================================================================== -->
+  <node if="$(arg launch_map_server)"
+        pkg="map_server" type="map_server" name="map_server"
+        args="$(arg map_file)" output="screen">
+    <param name="frame_id" value="map" />
+  </node>
+
+  <!-- ================================================================== -->
+  <!-- move_base + cmd_vel smoother                                       -->
+  <!-- ================================================================== -->
+  <group if="$(arg launch_move_base)">
+    <group if="$(arg use_cmd_vel_smoother)">
+      <include file="$(arg move_base_launch)">
+        <arg name="cmd_vel_topic" value="$(arg move_base_cmd_vel_topic)" />
+        <arg name="base_global_planner" value="$(arg base_global_planner)" />
+        <arg name="waypoints_file" value="$(arg waypoints_file)" />
+      </include>
+
+      <node pkg="um980_driver"
+            type="cmd_vel_smoother.py"
+            name="cmd_vel_smoother"
+            output="screen">
+        <rosparam file="$(arg config_dir)/cmd_vel_smoother.yaml" command="load" />
+        <param name="input_topic" value="$(arg move_base_cmd_vel_topic)" />
+        <param name="output_topic" value="$(arg cmd_vel_topic)" />
+      </node>
+    </group>
+
+    <group unless="$(arg use_cmd_vel_smoother)">
+      <include file="$(arg move_base_launch)">
+        <arg name="cmd_vel_topic" value="$(arg cmd_vel_topic)" />
+        <arg name="base_global_planner" value="$(arg base_global_planner)" />
+        <arg name="waypoints_file" value="$(arg waypoints_file)" />
+      </include>
+    </group>
+  </group>
+
+  <!-- ================================================================== -->
+  <!-- Waypoint visualizer & patrol                                       -->
+  <!-- ================================================================== -->
+  <include if="$(arg launch_waypoint_visualizer)" file="$(arg waypoint_visualizer_launch)">
+    <arg name="waypoints_file" value="$(arg waypoints_file)" />
+  </include>
+
+  <include if="$(arg launch_waypoint_patrol)" file="$(arg waypoint_patrol_launch)">
+    <arg name="waypoints_file" value="$(arg waypoints_file)" />
+    <arg name="auto_start" value="$(arg auto_start_waypoint_patrol)" />
+    <arg name="loop" value="$(arg loop_waypoint_patrol)" />
+  </include>
+
+  <!-- ================================================================== -->
+  <!-- RViz                                                               -->
+  <!-- ================================================================== -->
+  <node if="$(arg rviz)" pkg="rviz" type="rviz" name="rviz_hybrid_navigation" args="-d $(arg rviz_config)" />
+</launch>

@@ -1,0 +1,290 @@
+frame_id: "map"
+loop: true
+source: "/home/sigu/RTK/44/src/um980_driver/poses/pose.json"
+generated_at: "2026-04-17T12:39:26"
+raw_pose_count: 1985
+filtered_pose_count: 1915
+interval: 5.000000
+path_length: 169.492447
+yaw_mode: "tangent"
+waypoints:
+  - id: 0
+    x: 0.001723
+    y: -0.000274
+    z: 0.306132
+    yaw: -0.028740
+    yaw_deg: -1.647
+    distance: 0.000000
+    source_index: 0
+  - id: 1
+    x: 4.913815
+    y: -0.584456
+    z: 0.276647
+    yaw: -0.200821
+    yaw_deg: -11.506
+    distance: 5.000000
+    source_index: 77
+  - id: 2
+    x: 9.808606
+    y: -1.553405
+    z: 0.511930
+    yaw: -0.173899
+    yaw_deg: -9.964
+    distance: 10.000000
+    source_index: 149
+  - id: 3
+    x: 13.178805
+    y: 0.774453
+    z: 0.684111
+    yaw: 1.631072
+    yaw_deg: 93.454
+    distance: 15.000000
+    source_index: 221
+  - id: 4
+    x: 9.903283
+    y: 4.276712
+    z: 0.482249
+    yaw: 2.570282
+    yaw_deg: 147.266
+    distance: 20.000000
+    source_index: 290
+  - id: 5
+    x: 5.479359
+    y: 6.562333
+    z: 0.280619
+    yaw: 2.727293
+    yaw_deg: 156.262
+    distance: 25.000000
+    source_index: 351
+  - id: 6
+    x: 0.943481
+    y: 8.612113
+    z: 0.097154
+    yaw: 2.732756
+    yaw_deg: 156.575
+    distance: 30.000000
+    source_index: 412
+  - id: 7
+    x: -3.610712
+    y: 10.559976
+    z: -0.053524
+    yaw: 2.699183
+    yaw_deg: 154.652
+    distance: 35.000000
+    source_index: 471
+  - id: 8
+    x: -8.120148
+    y: 12.618442
+    z: -0.559204
+    yaw: 2.717421
+    yaw_deg: 155.697
+    distance: 40.000000
+    source_index: 528
+  - id: 9
+    x: -12.363577
+    y: 15.127320
+    z: -0.841831
+    yaw: 2.173350
+    yaw_deg: 124.524
+    distance: 45.000000
+    source_index: 583
+  - id: 10
+    x: -11.376483
+    y: 19.637198
+    z: -0.590384
+    yaw: 1.220313
+    yaw_deg: 69.919
+    distance: 50.000000
+    source_index: 634
+  - id: 11
+    x: -9.676485
+    y: 24.299765
+    z: -0.154097
+    yaw: 1.185973
+    yaw_deg: 67.951
+    distance: 55.000000
+    source_index: 693
+  - id: 12
+    x: -7.956816
+    y: 28.968394
+    z: 0.412190
+    yaw: 1.225394
+    yaw_deg: 70.210
+    distance: 60.000000
+    source_index: 757
+  - id: 13
+    x: -6.185323
+    y: 33.587925
+    z: 1.048820
+    yaw: 1.194494
+    yaw_deg: 68.439
+    distance: 65.000000
+    source_index: 819
+  - id: 14
+    x: -4.477128
+    y: 38.246764
+    z: 1.683098
+    yaw: 1.238369
+    yaw_deg: 70.953
+    distance: 70.000000
+    source_index: 878
+  - id: 15
+    x: -2.762820
+    y: 42.852221
+    z: 2.372907
+    yaw: 1.214266
+    yaw_deg: 69.572
+    distance: 75.000000
+    source_index: 934
+  - id: 16
+    x: -1.000360
+    y: 47.488585
+    z: 3.085609
+    yaw: 1.213572
+    yaw_deg: 69.533
+    distance: 80.000000
+    source_index: 990
+  - id: 17
+    x: -1.305237
+    y: 51.837884
+    z: 3.545382
+    yaw: 2.629218
+    yaw_deg: 150.643
+    distance: 85.000000
+    source_index: 1050
+  - id: 18
+    x: -5.854149
+    y: 53.733892
+    z: 3.428148
+    yaw: 2.753609
+    yaw_deg: 157.770
+    distance: 90.000000
+    source_index: 1111
+  - id: 19
+    x: -10.481500
+    y: 55.547519
+    z: 3.336204
+    yaw: 2.785070
+    yaw_deg: 159.573
+    distance: 95.000000
+    source_index: 1168
+  - id: 20
+    x: -15.181359
+    y: 57.159488
+    z: 3.267977
+    yaw: 2.815227
+    yaw_deg: 161.301
+    distance: 100.000000
+    source_index: 1218
+  - id: 21
+    x: -19.804072
+    y: 58.974650
+    z: 3.274632
+    yaw: 2.759181
+    yaw_deg: 158.089
+    distance: 105.000000
+    source_index: 1270
+  - id: 22
+    x: -24.474949
+    y: 60.633269
+    z: 3.260773
+    yaw: 2.814956
+    yaw_deg: 161.285
+    distance: 110.000000
+    source_index: 1322
+  - id: 23
+    x: -29.117499
+    y: 62.403938
+    z: 3.305031
+    yaw: 2.784465
+    yaw_deg: 159.538
+    distance: 115.000000
+    source_index: 1374
+  - id: 24
+    x: -33.798241
+    y: 64.058321
+    z: 3.369476
+    yaw: 2.800373
+    yaw_deg: 160.450
+    distance: 120.000000
+    source_index: 1425
+  - id: 25
+    x: -38.484015
+    y: 65.685448
+    z: 3.433293
+    yaw: 2.781826
+    yaw_deg: 159.387
+    distance: 125.000000
+    source_index: 1475
+  - id: 26
+    x: -43.106506
+    y: 67.434391
+    z: 3.533433
+    yaw: 2.782133
+    yaw_deg: 159.404
+    distance: 130.000000
+    source_index: 1525
+  - id: 27
+    x: -47.705709
+    y: 69.205967
+    z: 3.688875
+    yaw: 2.775988
+    yaw_deg: 159.052
+    distance: 135.000000
+    source_index: 1576
+  - id: 28
+    x: -52.349879
+    y: 70.949348
+    z: 3.843847
+    yaw: 2.796189
+    yaw_deg: 160.210
+    distance: 140.000000
+    source_index: 1623
+  - id: 29
+    x: -56.972243
+    y: 72.659182
+    z: 4.041021
+    yaw: 2.763129
+    yaw_deg: 158.316
+    distance: 145.000000
+    source_index: 1670
+  - id: 30
+    x: -61.608752
+    y: 74.290538
+    z: 4.229238
+    yaw: 2.783687
+    yaw_deg: 159.493
+    distance: 150.000000
+    source_index: 1719
+  - id: 31
+    x: -66.270230
+    y: 75.975024
+    z: 4.481011
+    yaw: 2.768171
+    yaw_deg: 158.605
+    distance: 155.000000
+    source_index: 1765
+  - id: 32
+    x: -70.914866
+    y: 77.692945
+    z: 4.741759
+    yaw: 2.828621
+    yaw_deg: 162.068
+    distance: 160.000000
+    source_index: 1813
+  - id: 33
+    x: -75.645569
+    y: 79.235909
+    z: 5.028543
+    yaw: 2.812290
+    yaw_deg: 161.132
+    distance: 165.000000
+    source_index: 1865
+  - id: 34
+    x: -79.807098
+    y: 80.836843
+    z: 5.310483
+    yaw: 2.777514
+    yaw_deg: 159.140
+    distance: 169.492447
+    source_index: 1914
