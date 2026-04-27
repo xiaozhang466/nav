@@ -125,6 +125,14 @@ def load_waypoints(path: str, frame_override: str = "") -> Tuple[str, bool, List
     return frame_id, loop, waypoints
 
 
+def parse_active_source(status_text: str) -> str:
+    """Extract the active=<source> field from a global_localization/status string."""
+    for token in status_text.split():
+        if token.startswith("active="):
+            return token[len("active="):]
+    return ""
+
+
 class WaypointPatrolNode:
     def __init__(self):
         self.waypoints_file = rospy.get_param("~waypoints_file")
@@ -222,6 +230,12 @@ class WaypointPatrolNode:
             rospy.get_param("~terminal_use_waypoint_yaw", True)
         )
         self.goal_lookahead_count = max(1, int(rospy.get_param("~goal_lookahead_count", 2)))
+        self.source_switch_suppress_duration = float(
+            rospy.get_param("~source_switch_suppress_duration", 5.0)
+        )
+        self.global_status_topic = rospy.get_param(
+            "~global_status_topic", "/global_localization/status"
+        )
         self.status_rate = float(rospy.get_param("~status_rate", 1.0))
         self.use_waypoint_z = bool(rospy.get_param("~use_waypoint_z", False))
         self.goal_z = float(rospy.get_param("~goal_z", 0.0))
@@ -275,6 +289,8 @@ class WaypointPatrolNode:
         self.auto_start_candidate_time: Optional[rospy.Time] = None
         self.turn_target_yaw: Optional[float] = None
         self.turn_started_at: Optional[rospy.Time] = None
+        self.last_known_active_source: Optional[str] = None
+        self.source_switch_suppress_until: Optional[float] = None
 
         self.status_pub = rospy.Publisher("~status", String, queue_size=1, latch=True)
         self.current_goal_pub = rospy.Publisher("~current_goal", PoseStamped, queue_size=1, latch=True)
@@ -293,6 +309,9 @@ class WaypointPatrolNode:
         )
         turn_period = 1.0 / max(self.turn_control_rate, 1.0)
         self.turn_timer = rospy.Timer(rospy.Duration(turn_period), self.handle_turning)
+        rospy.Subscriber(
+            self.global_status_topic, String, self._global_status_callback, queue_size=5
+        )
 
         rospy.loginfo(
             "Loaded %d patrol waypoints from %s in frame %s",
@@ -569,10 +588,41 @@ class WaypointPatrolNode:
         )
         return should_enable, yaw_error
 
+    def _source_switch_suppressed(self) -> bool:
+        """Return True if startup mode entry is suppressed due to a recent
+        localization source switch (to avoid false yaw-error triggers)."""
+        if self.source_switch_suppress_until is None:
+            return False
+        return rospy.Time.now().to_sec() < self.source_switch_suppress_until
+
+    def _global_status_callback(self, msg: String) -> None:
+        """Detect localization source switches and suppress startup mode."""
+        active = parse_active_source(msg.data)
+        if not active or active == "none":
+            return
+        with self.lock:
+            previous = self.last_known_active_source
+            self.last_known_active_source = active
+            if previous is not None and previous != active:
+                suppress_until = (
+                    rospy.Time.now().to_sec() + self.source_switch_suppress_duration
+                )
+                self.source_switch_suppress_until = suppress_until
+                rospy.loginfo(
+                    "Localization source switched %s -> %s, suppressing "
+                    "startup mode for %.1fs",
+                    previous,
+                    active,
+                    self.source_switch_suppress_duration,
+                )
+
     def maybe_enter_startup_mode_locked(
         self, route_progress: float, nearest_distance: float, current_yaw: float
     ) -> bool:
         if self.startup_mode_active:
+            return False
+
+        if self._source_switch_suppressed():
             return False
 
         should_enable, yaw_error = self.evaluate_startup_mode(

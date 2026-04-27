@@ -606,12 +606,56 @@ class NavHealthMonitor:
             return None
         return rospy.Time.now().to_sec() - sample.received
 
+    def transform_pose_to_frame(
+        self, pose: Pose2D, target_frame: str
+    ) -> Optional[Pose2D]:
+        source_frame = pose.frame_id or target_frame
+        if source_frame == target_frame:
+            return pose
+
+        try:
+            transform: TransformStamped = self.tf_buffer.lookup_transform(
+                target_frame,
+                source_frame,
+                rospy.Time(0),
+                rospy.Duration(self.tf_timeout),
+            )
+        except Exception as exc:  # pylint: disable=broad-except
+            rospy.logwarn_throttle(
+                5.0,
+                "Cannot transform nav health pose from '%s' to '%s': %s",
+                source_frame,
+                target_frame,
+                exc,
+            )
+            return None
+
+        t = transform.transform.translation
+        q = transform.transform.rotation
+        tf_yaw = quaternion_to_yaw(q)
+        cos_yaw = math.cos(tf_yaw)
+        sin_yaw = math.sin(tf_yaw)
+        return Pose2D(
+            stamp=pose.stamp,
+            received=pose.received,
+            frame_id=target_frame,
+            x=t.x + cos_yaw * pose.x - sin_yaw * pose.y,
+            y=t.y + sin_yaw * pose.x + cos_yaw * pose.y,
+            yaw=wrap_angle(tf_yaw + pose.yaw),
+        )
+
     def compute_rtk_lidar_delta(self) -> Tuple[Optional[float], Optional[float]]:
         with self.lock:
-            rtk = self.rtk_pose
-            lidar = self.lidar_pose
+            raw_rtk = self.rtk_pose
+            raw_lidar = self.lidar_pose
+        if raw_rtk is None or raw_lidar is None:
+            return None, None
+
+        rtk = self.transform_pose_to_frame(raw_rtk, self.map_frame)
+        lidar = self.transform_pose_to_frame(raw_lidar, self.map_frame)
         if rtk is None or lidar is None:
             return None, None
+
         xy = math.hypot(rtk.x - lidar.x, rtk.y - lidar.y)
         yaw = abs(wrap_angle(rtk.yaw - lidar.yaw))
         return xy, yaw

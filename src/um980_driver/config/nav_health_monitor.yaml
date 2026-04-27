@@ -17,7 +17,7 @@ waypoint_status_topic: /waypoint_patrol/status
 rtk_fix_type_topic: /rtk/fix_type
 rtk_position_type_topic: /rtk/position_type
 move_base_status_topic: /move_base/status
-global_plan_topic: /move_base/NavfnROS/plan
+global_plan_topic: /move_base/DWAPlannerROS/global_plan
 local_plan_topic: /move_base/DWAPlannerROS/local_plan
 
 status_topic: /nav_health/status
