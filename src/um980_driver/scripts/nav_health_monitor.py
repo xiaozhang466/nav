@@ -251,6 +251,7 @@ class NavHealthMonitor:
         self.move_base_status = "none"
         self.move_base_text = ""
         self.move_base_received = 0.0
+        self.last_move_base_terminal_key: Optional[Tuple[str, int]] = None
         self.global_plan: Optional[PlanSample] = None
         self.local_plan: Optional[PlanSample] = None
 
@@ -495,6 +496,10 @@ class NavHealthMonitor:
             GoalStatus.REJECTED,
             GoalStatus.LOST,
         ):
+            terminal_key = (chosen.goal_id.id, chosen.status)
+            if terminal_key == self.last_move_base_terminal_key:
+                return
+            self.last_move_base_terminal_key = terminal_key
             self.add_event(
                 "ERROR",
                 "move_base_%s" % STATUS_NAMES.get(chosen.status, chosen.status).lower(),
@@ -552,11 +557,14 @@ class NavHealthMonitor:
         xy_jump = xy_step > self.pose_jump_xy and speed > self.pose_jump_speed
         yaw_jump = yaw_step > self.pose_jump_yaw and yaw_rate > self.pose_jump_yaw_rate
         if xy_jump or yaw_jump:
+            with self.lock:
+                source = self.active_source
+                fix = self.rtk_fix_type.text if self.rtk_fix_type is not None else "unknown"
             self.add_event(
                 "WARN",
                 "global_pose_jump",
-                "xy_step=%.3f speed=%.2f yaw_step_deg=%.1f yaw_rate_deg=%.1f dt=%.3f"
-                % (xy_step, speed, math.degrees(yaw_step), math.degrees(yaw_rate), dt),
+                "xy_step=%.3f speed=%.2f yaw_step_deg=%.1f yaw_rate_deg=%.1f dt=%.3f source=%s rtk=%s"
+                % (xy_step, speed, math.degrees(yaw_step), math.degrees(yaw_rate), dt, source, fix),
             )
 
     def detect_cmd_oscillation(
