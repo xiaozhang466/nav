@@ -60,6 +60,12 @@ goal_lookahead_distance: 6.0
 goal_update_distance: 1.0
 goal_update_min_interval: 0.5
 route_realign_distance: 2.0
+# After passing a checkpoint, do not immediately let route-progress realignment
+# move the active checkpoint back to the same one. This prevents boundary
+# chatter such as wp3 -> wp2 -> wp3 when localization/projection jitters near
+# the pass radius.
+passed_checkpoint_realign_distance: 1.5
+passed_checkpoint_realign_route_error: 2.0
 # Keep patrol continuous by default. RouteGlobalPlanner now builds a soft merge
 # back toward the reference route, so we do not split behavior into a dedicated
 # "rejoin first, patrol later" phase unless we explicitly opt back into it.

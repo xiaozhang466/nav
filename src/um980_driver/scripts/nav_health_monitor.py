@@ -188,6 +188,12 @@ class NavHealthMonitor:
         self.local_plan_topic = rospy.get_param(
             "~local_plan_topic", "/move_base/DWAPlannerROS/local_plan"
         )
+        self.rpp_status_topic = rospy.get_param(
+            "~rpp_status_topic", "/move_base/RegulatedPurePursuitPlanner/status"
+        )
+        self.rpp_local_plan_topic = rospy.get_param(
+            "~rpp_local_plan_topic", "/move_base/RegulatedPurePursuitPlanner/local_plan"
+        )
 
         self.status_topic = rospy.get_param("~status_topic", "/nav_health/status")
         self.event_topic = rospy.get_param("~event_topic", "/nav_health/events")
@@ -245,6 +251,7 @@ class NavHealthMonitor:
         self.lidar_status: Optional[StatusSample] = None
         self.relocalizer_status: Optional[StatusSample] = None
         self.waypoint_status: Optional[StatusSample] = None
+        self.rpp_status: Optional[StatusSample] = None
         self.rtk_fix_type: Optional[StatusSample] = None
         self.rtk_position_type: Optional[StatusSample] = None
 
@@ -320,6 +327,10 @@ class NavHealthMonitor:
         )
         rospy.Subscriber(self.global_plan_topic, Path, self.global_plan_callback, queue_size=5)
         rospy.Subscriber(self.local_plan_topic, Path, self.local_plan_callback, queue_size=5)
+        rospy.Subscriber(self.rpp_status_topic, String, self.rpp_status_callback, queue_size=20)
+        rospy.Subscriber(
+            self.rpp_local_plan_topic, Path, self.local_plan_callback, queue_size=5
+        )
 
     def setup_logs(self) -> None:
         if not self.log_enabled:
@@ -353,6 +364,16 @@ class NavHealthMonitor:
             "route_error",
             "checkpoint_distance",
             "move_base_status",
+            "local_controller",
+            "rpp_reason",
+            "rpp_status_age",
+            "rpp_lookahead",
+            "rpp_target_x",
+            "rpp_target_y",
+            "rpp_curvature",
+            "rpp_linear",
+            "rpp_angular",
+            "rpp_remaining",
             "global_plan_size",
             "global_plan_length",
             "local_plan_size",
@@ -463,6 +484,17 @@ class NavHealthMonitor:
             self.waypoint_index = current_index
         if current_index is not None and previous is not None and current_index != previous:
             self.add_event("INFO", "waypoint_changed", "%s -> %s" % (previous, current_index))
+
+    def rpp_status_callback(self, msg: String) -> None:
+        sample = self.make_status_sample(msg)
+        reason = sample.fields.get("reason", "")
+        detail = msg.data
+        with self.lock:
+            self.rpp_status = sample
+        if reason == "obstacle":
+            self.add_event("WARN", "rpp_obstacle", detail)
+        elif reason == "target_behind":
+            self.add_event("WARN", "rpp_target_behind", detail)
 
     def rtk_fix_type_callback(self, msg: String) -> None:
         with self.lock:
@@ -760,6 +792,7 @@ class NavHealthMonitor:
             move_base_status = self.move_base_status
             global_plan = self.global_plan
             local_plan = self.local_plan
+            rpp = self.rpp_status
 
         rtk_lidar_xy, rtk_lidar_yaw = self.compute_rtk_lidar_delta()
         route_error = parse_float(waypoint.fields.get("route_error")) if waypoint else None
@@ -768,6 +801,15 @@ class NavHealthMonitor:
         )
         waypoint_state = waypoint.fields.get("state", "unknown") if waypoint else "unknown"
         waypoint_index = parse_patrol_index(waypoint.text, "checkpoint") if waypoint else None
+        rpp_reason = rpp.fields.get("reason", "unknown") if rpp else "unknown"
+        local_controller = rpp.fields.get("controller", "unknown") if rpp else "unknown"
+        rpp_lookahead = parse_float(rpp.fields.get("lookahead")) if rpp else None
+        rpp_target_x = parse_float(rpp.fields.get("target_x")) if rpp else None
+        rpp_target_y = parse_float(rpp.fields.get("target_y")) if rpp else None
+        rpp_curvature = parse_float(rpp.fields.get("curvature")) if rpp else None
+        rpp_linear = parse_float(rpp.fields.get("linear")) if rpp else None
+        rpp_angular = parse_float(rpp.fields.get("angular")) if rpp else None
+        rpp_remaining = parse_float(rpp.fields.get("remaining")) if rpp else None
 
         tf_results = {}
         for target, source_frame, name in (
@@ -782,7 +824,8 @@ class NavHealthMonitor:
         last_event = self.get_latest_event(now)
 
         summary = (
-            "source=%s rtk=%s/%s delta_xy=%s delta_yaw_deg=%s wp=%s route_error=%s"
+            "source=%s rtk=%s/%s delta_xy=%s delta_yaw_deg=%s wp=%s "
+            "route_error=%s controller=%s rpp_reason=%s"
             % (
                 source,
                 fix,
@@ -794,6 +837,8 @@ class NavHealthMonitor:
                 ),
                 waypoint_index if waypoint_index is not None else "unknown",
                 self.format_optional(route_error, "%.2f"),
+                local_controller,
+                rpp_reason,
             )
         )
 
@@ -823,6 +868,16 @@ class NavHealthMonitor:
             "route_error": self.format_optional(route_error, "%.3f"),
             "checkpoint_distance": self.format_optional(checkpoint_distance, "%.3f"),
             "move_base_status": move_base_status,
+            "local_controller": local_controller,
+            "rpp_reason": rpp_reason,
+            "rpp_status_age": self.format_optional(self.age(now, rpp), "%.3f"),
+            "rpp_lookahead": self.format_optional(rpp_lookahead, "%.3f"),
+            "rpp_target_x": self.format_optional(rpp_target_x, "%.3f"),
+            "rpp_target_y": self.format_optional(rpp_target_y, "%.3f"),
+            "rpp_curvature": self.format_optional(rpp_curvature, "%.4f"),
+            "rpp_linear": self.format_optional(rpp_linear, "%.3f"),
+            "rpp_angular": self.format_optional(rpp_angular, "%.3f"),
+            "rpp_remaining": self.format_optional(rpp_remaining, "%.3f"),
             "global_plan_size": global_plan.size if global_plan else "unknown",
             "global_plan_length": self.format_optional(
                 global_plan.length if global_plan else None, "%.3f"
@@ -865,7 +920,8 @@ class NavHealthMonitor:
             "rtk_position={rtk_position_type} rtk_lidar_xy={rtk_lidar_xy} "
             "rtk_lidar_yaw_deg={rtk_lidar_yaw_deg} cmd_v={cmd_v} cmd_w={cmd_w} "
             "odom_v={odom_v} odom_w={odom_w} waypoint={waypoint_index} "
-            "route_error={route_error} move_base={move_base_status} last_event={last_event}"
+            "route_error={route_error} move_base={move_base_status} "
+            "controller={local_controller} rpp_reason={rpp_reason} last_event={last_event}"
         ).format(**snapshot)
 
     def make_markers(self, snapshot: Dict[str, object]) -> MarkerArray:

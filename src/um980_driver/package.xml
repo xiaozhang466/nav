@@ -23,6 +23,7 @@
   <depend>std_msgs</depend>
   <depend>std_srvs</depend>
   <depend>tf</depend>
+  <depend>tf2_geometry_msgs</depend>
   <depend>tf2_ros</depend>
   <depend>visualization_msgs</depend>
 
@@ -41,5 +42,6 @@
 
   <export>
     <nav_core plugin="${prefix}/route_global_planner_plugin.xml" />
+    <nav_core plugin="${prefix}/regulated_pure_pursuit_plugin.xml" />
   </export>
 </package>

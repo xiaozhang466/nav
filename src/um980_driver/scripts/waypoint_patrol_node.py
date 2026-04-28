@@ -169,6 +169,12 @@ class WaypointPatrolNode:
         self.goal_update_distance = float(rospy.get_param("~goal_update_distance", 0.75))
         self.goal_update_min_interval = float(rospy.get_param("~goal_update_min_interval", 0.7))
         self.route_realign_distance = float(rospy.get_param("~route_realign_distance", 2.0))
+        self.passed_checkpoint_realign_distance = float(
+            rospy.get_param("~passed_checkpoint_realign_distance", 1.5)
+        )
+        self.passed_checkpoint_realign_route_error = float(
+            rospy.get_param("~passed_checkpoint_realign_route_error", 2.0)
+        )
         self.realign_while_running = bool(rospy.get_param("~realign_while_running", True))
         self.rejoin_mode_enabled = bool(rospy.get_param("~rejoin_mode_enabled", True))
         self.rejoin_enter_route_error = float(
@@ -280,6 +286,9 @@ class WaypointPatrolNode:
         self.last_route_progress: Optional[float] = None
         self.last_checkpoint_distance: Optional[float] = None
         self.last_terminal_mode = False
+        self.last_passed_checkpoint_index: Optional[int] = None
+        self.last_passed_checkpoint_progress: Optional[float] = None
+        self.last_passed_checkpoint_direction = 0
         self.rejoin_mode_active = False
         self.startup_mode_active = False
         self.startup_mode_start_progress: Optional[float] = None
@@ -604,6 +613,7 @@ class WaypointPatrolNode:
             previous = self.last_known_active_source
             self.last_known_active_source = active
             if previous is not None and previous != active:
+                self.clear_passed_checkpoint_guard_locked()
                 suppress_until = (
                     rospy.Time.now().to_sec() + self.source_switch_suppress_duration
                 )
@@ -717,6 +727,56 @@ class WaypointPatrolNode:
             return True
         return self.terminal_remaining_distance(route_progress) <= self.terminal_mode_distance
 
+    def remember_passed_checkpoint_locked(
+        self, passed_index: int, route_progress: float
+    ) -> None:
+        self.last_passed_checkpoint_index = passed_index
+        self.last_passed_checkpoint_progress = route_progress
+        self.last_passed_checkpoint_direction = self.route_direction
+
+    def clear_passed_checkpoint_guard_locked(self) -> None:
+        self.last_passed_checkpoint_index = None
+        self.last_passed_checkpoint_progress = None
+        self.last_passed_checkpoint_direction = 0
+
+    def should_suppress_realign_to_passed_checkpoint_locked(
+        self,
+        desired_index: int,
+        route_progress: float,
+        nearest_distance: float,
+    ) -> bool:
+        if self.last_passed_checkpoint_index is None:
+            return False
+        if self.last_passed_checkpoint_progress is None:
+            return False
+        if desired_index != self.last_passed_checkpoint_index:
+            return False
+        if self.last_passed_checkpoint_direction != self.route_direction:
+            self.clear_passed_checkpoint_guard_locked()
+            return False
+        if nearest_distance >= self.passed_checkpoint_realign_route_error:
+            self.clear_passed_checkpoint_guard_locked()
+            return False
+
+        progress_after_pass = (
+            (route_progress - self.last_passed_checkpoint_progress) * self.route_direction
+        )
+        if progress_after_pass >= self.passed_checkpoint_realign_distance:
+            self.clear_passed_checkpoint_guard_locked()
+            return False
+
+        rospy.logwarn_throttle(
+            2.0,
+            (
+                "Suppressing checkpoint realign back to recently passed index=%d: "
+                "progress_after_pass=%.2fm route_error=%.2fm"
+            ),
+            desired_index,
+            progress_after_pass,
+            nearest_distance,
+        )
+        return True
+
     def try_complete_terminal_segment_locked(
         self, route_progress: float, x: float, y: float
     ) -> bool:
@@ -768,7 +828,9 @@ class WaypointPatrolNode:
         self.move_base.cancel_all_goals()
         return True
 
-    def realign_checkpoint_from_progress_locked(self, route_progress: float):
+    def realign_checkpoint_from_progress_locked(
+        self, route_progress: float, nearest_distance: float
+    ):
         if self.in_terminal_mode(route_progress, self.current_index):
             terminal_index = self.terminal_index_for_direction()
             if self.current_index != terminal_index:
@@ -785,6 +847,11 @@ class WaypointPatrolNode:
         desired_index = self.choose_start_index(route_progress)
         if desired_index is None:
             self.current_index = len(self.waypoints)
+            return
+        if self.should_suppress_realign_to_passed_checkpoint_locked(
+            desired_index, route_progress, nearest_distance
+        ):
+            self.last_terminal_mode = False
             return
 
         if self.current_index is None:
@@ -857,7 +924,7 @@ class WaypointPatrolNode:
             return
 
         try:
-            progress, _nearest_distance = self.refresh_route_state_locked()
+            progress, nearest_distance = self.refresh_route_state_locked()
         except Exception:
             self.current_index = self.advance_past_nearby_waypoints(self.current_index)
             return
@@ -879,7 +946,7 @@ class WaypointPatrolNode:
             return
 
         if self.use_interpolated_goal:
-            self.realign_checkpoint_from_progress_locked(progress)
+            self.realign_checkpoint_from_progress_locked(progress, nearest_distance)
             return
 
         if self.route_direction > 0:
@@ -1120,6 +1187,7 @@ class WaypointPatrolNode:
         self.rejoin_mode_active = False
         self.startup_mode_active = False
         self.startup_mode_start_progress = None
+        self.clear_passed_checkpoint_guard_locked()
         self.active_goal_index = None
         self.active_goal_distance = None
         self.active_goal_x = None
@@ -1253,16 +1321,19 @@ class WaypointPatrolNode:
 
         if self.loop:
             if self.ping_pong and is_terminal_checkpoint:
+                self.clear_passed_checkpoint_guard_locked()
                 self.start_turnaround_locked(
                     "passed terminal checkpoint index=%d,id=%d" % (passed_index, passed_id)
                 )
                 return True
+            self.remember_passed_checkpoint_locked(passed_index, route_progress)
             if self.ping_pong:
                 self.current_index += self.route_direction
             else:
                 self.current_index = (self.current_index + 1) % len(self.waypoints)
             self.wrapping_to_start = is_terminal_checkpoint and self.current_index == 0
         else:
+            self.remember_passed_checkpoint_locked(passed_index, route_progress)
             self.current_index += self.route_direction
             self.wrapping_to_start = False
         self.current_retries = 0
@@ -1550,6 +1621,7 @@ class WaypointPatrolNode:
                 return TriggerResponse(success=True, message=self.last_message)
 
             self.current_index = start_index
+            self.clear_passed_checkpoint_guard_locked()
             self.wrapping_to_start = (
                 self.loop
                 and not self.ping_pong
@@ -1658,6 +1730,7 @@ class WaypointPatrolNode:
             self.active_goal_x = None
             self.active_goal_y = None
             self.last_checkpoint_distance = None
+            self.clear_passed_checkpoint_guard_locked()
             self.current_retries = 0
             self.last_message = "stopped"
             return TriggerResponse(success=True, message="stopped patrol")

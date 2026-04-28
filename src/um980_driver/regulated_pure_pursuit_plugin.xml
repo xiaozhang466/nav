@@ -1,0 +1,11 @@
+<library path="lib/libregulated_pure_pursuit_planner">
+  <class name="um980_driver/RegulatedPurePursuitPlanner"
+         type="um980_driver::RegulatedPurePursuitPlanner"
+         base_class_type="nav_core::BaseLocalPlanner">
+    <description>
+      Local planner that tracks the global route with regulated pure pursuit,
+      curvature speed limiting, acceleration limiting, and conservative
+      obstacle stop checks.
+    </description>
+  </class>
+</library>

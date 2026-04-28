@@ -16,12 +16,13 @@ find_package(catkin REQUIRED COMPONENTS
   std_msgs
   std_srvs
   tf
+  tf2_geometry_msgs
   tf2_ros
   visualization_msgs
 )
 
 catkin_package(
-  CATKIN_DEPENDS actionlib actionlib_msgs costmap_2d geometry_msgs move_base_msgs nav_core nav_msgs pluginlib roscpp rospy sensor_msgs std_msgs std_srvs tf tf2_ros visualization_msgs
+  CATKIN_DEPENDS actionlib actionlib_msgs costmap_2d geometry_msgs move_base_msgs nav_core nav_msgs pluginlib roscpp rospy sensor_msgs std_msgs std_srvs tf tf2_geometry_msgs tf2_ros visualization_msgs
 )
 
 include_directories(
@@ -32,6 +33,13 @@ add_library(route_global_planner
   src/route_global_planner.cpp
 )
 target_link_libraries(route_global_planner
+  ${catkin_LIBRARIES}
+)
+
+add_library(regulated_pure_pursuit_planner
+  src/regulated_pure_pursuit_planner.cpp
+)
+target_link_libraries(regulated_pure_pursuit_planner
   ${catkin_LIBRARIES}
 )
 
@@ -77,10 +85,12 @@ install(DIRECTORY
 
 install(TARGETS
   route_global_planner
+  regulated_pure_pursuit_planner
   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
 )
 
 install(FILES
   route_global_planner_plugin.xml
+  regulated_pure_pursuit_plugin.xml
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
 )

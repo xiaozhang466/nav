@@ -19,6 +19,8 @@ rtk_position_type_topic: /rtk/position_type
 move_base_status_topic: /move_base/status
 global_plan_topic: /move_base/DWAPlannerROS/global_plan
 local_plan_topic: /move_base/DWAPlannerROS/local_plan
+rpp_status_topic: /move_base/RegulatedPurePursuitPlanner/status
+rpp_local_plan_topic: /move_base/RegulatedPurePursuitPlanner/local_plan
 
 status_topic: /nav_health/status
 event_topic: /nav_health/events
