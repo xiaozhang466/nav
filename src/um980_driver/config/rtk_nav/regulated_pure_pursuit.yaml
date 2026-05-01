@@ -1,25 +1,25 @@
 RegulatedPurePursuitPlanner:
-  desired_linear_vel: 0.30
+  desired_linear_vel: 0.50
   min_linear_vel: 0.05
-  max_linear_vel: 0.35
+  max_linear_vel: 0.60
 
   # Larger lookahead smooths localization jitter and sharp waypoint corners;
   # smaller lookahead tracks tighter but can amplify left-right twitching.
-  min_lookahead: 1.2
-  max_lookahead: 2.8
+  min_lookahead: 1.5
+  max_lookahead: 3.5
   lookahead_time: 1.5
 
   xy_goal_tolerance: 0.30
   yaw_goal_tolerance: 1.57
 
-  max_angular_vel: 0.55
-  max_linear_accel: 0.40
-  max_angular_accel: 0.80
+  max_angular_vel: 0.80
+  max_linear_accel: 0.60
+  max_angular_accel: 1.20
   angular_deadband: 0.03
   lateral_deadband: 0.03
 
-  curvature_slowdown_gain: 1.2
-  approach_slowdown_distance: 1.0
+  curvature_slowdown_gain: 1.0
+  approach_slowdown_distance: 0.8
 
   # First version is conservative: stop when the direct pursuit segment ahead
   # intersects an occupied local costmap cell. Complex obstacle bypass should

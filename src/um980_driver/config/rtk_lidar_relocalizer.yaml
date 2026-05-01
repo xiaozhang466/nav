@@ -1,5 +1,6 @@
 rtk_odom_topic: /odometry/rtk_map
 lidar_odom_topic: /odometry/lidar_map
+raw_lidar_odom_topic: /Odometry
 lidar_status_topic: /lidar_localization/status
 rtk_fix_type_topic: /rtk/fix_type
 rtk_position_type_topic: /rtk/position_type
@@ -21,6 +22,17 @@ initialpose_xy_covariance: 0.04
 initialpose_yaw_covariance: 0.03
 publish_count: 3
 publish_period: 0.05
+
+# /initialpose is consumed by FAST-LOCALIZATION as a full 3D pose. RTK only
+# corrects x/y/yaw here; z/roll/pitch are preserved from the latest healthy
+# raw FAST odometry so the reset does not push scan matching out of the map.
+require_healthy_lidar_3d_pose: true
+healthy_lidar_pose_timeout: 0.0
+lidar_status_stamp_tolerance: 0.05
+healthy_lidar_max_abs_z: 20.0
+healthy_lidar_max_abs_roll_pitch_deg: 45.0
+healthy_lidar_max_z_step: 0.5
+healthy_lidar_max_roll_pitch_step_deg: 10.0
 
 # Real automatic relocalization mode. Keep thresholds conservative so normal
 # centimeter-level RTK/LiDAR differences do not cause repeated resets.

@@ -2,6 +2,7 @@
   <arg name="config" default="$(find um980_driver)/config/rtk_lidar_relocalizer.yaml" />
   <arg name="rtk_odom_topic" default="/odometry/rtk_map" />
   <arg name="lidar_odom_topic" default="/odometry/lidar_map" />
+  <arg name="raw_lidar_odom_topic" default="/Odometry" />
   <arg name="lidar_status_topic" default="/lidar_localization/status" />
   <arg name="initialpose_topic" default="/initialpose" />
   <arg name="map_frame" default="map" />
@@ -13,6 +14,8 @@
   <arg name="auto_relocalize_on_lidar_unhealthy" default="true" />
   <arg name="relocalize_cooldown" default="10.0" />
   <arg name="post_relocalize_grace_period" default="15.0" />
+  <arg name="require_healthy_lidar_3d_pose" default="true" />
+  <arg name="healthy_lidar_pose_timeout" default="10.0" />
 
   <node
     pkg="um980_driver"
@@ -22,6 +25,7 @@
     <rosparam command="load" file="$(arg config)" />
     <param name="rtk_odom_topic" value="$(arg rtk_odom_topic)" />
     <param name="lidar_odom_topic" value="$(arg lidar_odom_topic)" />
+    <param name="raw_lidar_odom_topic" value="$(arg raw_lidar_odom_topic)" />
     <param name="lidar_status_topic" value="$(arg lidar_status_topic)" />
     <param name="initialpose_topic" value="$(arg initialpose_topic)" />
     <param name="map_frame" value="$(arg map_frame)" />
@@ -33,5 +37,7 @@
     <param name="auto_relocalize_on_lidar_unhealthy" value="$(arg auto_relocalize_on_lidar_unhealthy)" />
     <param name="relocalize_cooldown" value="$(arg relocalize_cooldown)" />
     <param name="post_relocalize_grace_period" value="$(arg post_relocalize_grace_period)" />
+    <param name="require_healthy_lidar_3d_pose" value="$(arg require_healthy_lidar_3d_pose)" />
+    <param name="healthy_lidar_pose_timeout" value="$(arg healthy_lidar_pose_timeout)" />
   </node>
 </launch>

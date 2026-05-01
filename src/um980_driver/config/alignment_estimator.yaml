@@ -23,7 +23,7 @@ verify_max_residual: 0.3     # cache is valid if RMSE < this (m)
 
 # ── Full estimation ──
 min_samples: 30              # minimum matched pairs for a new estimate
-min_travel_m: 15.0           # minimum travel distance (m)
+min_travel_m: 20.0           # minimum travel distance (m)
 sample_spacing_m: 0.5        # minimum distance between kept samples
 max_time_delta: 0.15         # max time gap (s) for RTK/LiDAR matching
 max_accept_rmse: 0.15        # reject estimates with RMSE > this (m)

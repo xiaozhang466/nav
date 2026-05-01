@@ -9,6 +9,7 @@ FAST-LOCALIZATION back to the RTK pose.
 from __future__ import annotations
 
 import math
+from collections import deque
 from dataclasses import dataclass
 from typing import Optional
 
@@ -28,6 +29,18 @@ class Pose2D:
     yaw: float
 
 
+@dataclass
+class Pose3D:
+    stamp: float
+    frame_id: str
+    x: float
+    y: float
+    z: float
+    roll: float
+    pitch: float
+    yaw: float
+
+
 def wrap_angle(angle: float) -> float:
     while angle > math.pi:
         angle -= 2.0 * math.pi
@@ -43,9 +56,43 @@ def quaternion_to_yaw(orientation) -> float:
     )
 
 
+def quaternion_to_rpy(orientation) -> tuple[float, float, float]:
+    x = orientation.x
+    y = orientation.y
+    z = orientation.z
+    w = orientation.w
+
+    sinr_cosp = 2.0 * (w * x + y * z)
+    cosr_cosp = 1.0 - 2.0 * (x * x + y * y)
+    roll = math.atan2(sinr_cosp, cosr_cosp)
+
+    sinp = 2.0 * (w * y - z * x)
+    if abs(sinp) >= 1.0:
+        pitch = math.copysign(math.pi / 2.0, sinp)
+    else:
+        pitch = math.asin(sinp)
+
+    yaw = quaternion_to_yaw(orientation)
+    return roll, pitch, yaw
+
+
+def rpy_to_quaternion(roll: float, pitch: float, yaw: float) -> tuple[float, float, float, float]:
+    cy = math.cos(yaw * 0.5)
+    sy = math.sin(yaw * 0.5)
+    cp = math.cos(pitch * 0.5)
+    sp = math.sin(pitch * 0.5)
+    cr = math.cos(roll * 0.5)
+    sr = math.sin(roll * 0.5)
+
+    qw = cr * cp * cy + sr * sp * sy
+    qx = sr * cp * cy - cr * sp * sy
+    qy = cr * sp * cy + sr * cp * sy
+    qz = cr * cp * sy - sr * sp * cy
+    return qx, qy, qz, qw
+
+
 def yaw_to_quaternion(yaw: float) -> tuple[float, float, float, float]:
-    half = 0.5 * yaw
-    return 0.0, 0.0, math.sin(half), math.cos(half)
+    return rpy_to_quaternion(0.0, 0.0, yaw)
 
 
 def pose_from_odom(msg: Odometry) -> Pose2D:
@@ -55,6 +102,21 @@ def pose_from_odom(msg: Odometry) -> Pose2D:
         x=pose.position.x,
         y=pose.position.y,
         yaw=quaternion_to_yaw(pose.orientation),
+    )
+
+
+def pose3d_from_odom(msg: Odometry) -> Pose3D:
+    pose = msg.pose.pose
+    roll, pitch, yaw = quaternion_to_rpy(pose.orientation)
+    return Pose3D(
+        stamp=msg.header.stamp.to_sec(),
+        frame_id=msg.header.frame_id,
+        x=pose.position.x,
+        y=pose.position.y,
+        z=pose.position.z,
+        roll=roll,
+        pitch=pitch,
+        yaw=yaw,
     )
 
 
@@ -72,6 +134,7 @@ class RtkLidarRelocalizer:
     def __init__(self) -> None:
         self.rtk_odom_topic = rospy.get_param("~rtk_odom_topic", "/odometry/rtk_map")
         self.lidar_odom_topic = rospy.get_param("~lidar_odom_topic", "/odometry/lidar_map")
+        self.raw_lidar_odom_topic = rospy.get_param("~raw_lidar_odom_topic", "/Odometry")
         self.lidar_status_topic = rospy.get_param(
             "~lidar_status_topic", "/lidar_localization/status"
         )
@@ -106,6 +169,27 @@ class RtkLidarRelocalizer:
         )
         self.publish_count = int(rospy.get_param("~publish_count", 3))
         self.publish_period = float(rospy.get_param("~publish_period", 0.05))
+        self.require_healthy_lidar_3d_pose = bool(
+            rospy.get_param("~require_healthy_lidar_3d_pose", True)
+        )
+        self.healthy_lidar_pose_timeout = float(
+            rospy.get_param("~healthy_lidar_pose_timeout", 10.0)
+        )
+        self.lidar_status_stamp_tolerance = float(
+            rospy.get_param("~lidar_status_stamp_tolerance", 0.05)
+        )
+        self.healthy_lidar_max_abs_z = float(
+            rospy.get_param("~healthy_lidar_max_abs_z", 20.0)
+        )
+        self.healthy_lidar_max_abs_roll_pitch = math.radians(
+            float(rospy.get_param("~healthy_lidar_max_abs_roll_pitch_deg", 45.0))
+        )
+        self.healthy_lidar_max_z_step = float(
+            rospy.get_param("~healthy_lidar_max_z_step", 0.5)
+        )
+        self.healthy_lidar_max_roll_pitch_step = math.radians(
+            float(rospy.get_param("~healthy_lidar_max_roll_pitch_step_deg", 10.0))
+        )
 
         self.auto_enabled = bool(rospy.get_param("~auto_enabled", False))
         self.auto_check_rate = float(rospy.get_param("~auto_check_rate", 1.0))
@@ -145,6 +229,7 @@ class RtkLidarRelocalizer:
         self.lidar_status_ok: Optional[bool] = None
         self.lidar_status_reason = "waiting_for_lidar_status"
         self.lidar_status_stamp: Optional[float] = None
+        self.lidar_status_source_stamp: Optional[float] = None
         self.rtk_fix_type: Optional[str] = None
         self.rtk_fix_type_stamp: Optional[float] = None
         self.rtk_position_type: Optional[str] = None
@@ -154,6 +239,9 @@ class RtkLidarRelocalizer:
         self.auto_baseline_xy_delta: Optional[float] = None
         self.auto_baseline_yaw_delta: Optional[float] = None
         self.auto_baseline_stamp: Optional[float] = None
+        self.raw_lidar_history: deque[Pose3D] = deque(maxlen=300)
+        self.latest_healthy_lidar_3d_pose: Optional[Pose3D] = None
+        self.last_healthy_lidar_3d_reject_reason = "none"
 
         self.tf_buffer = tf2_ros.Buffer(cache_time=rospy.Duration(10.0))
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
@@ -165,6 +253,9 @@ class RtkLidarRelocalizer:
 
         rospy.Subscriber(self.rtk_odom_topic, Odometry, self.rtk_callback, queue_size=20)
         rospy.Subscriber(self.lidar_odom_topic, Odometry, self.lidar_callback, queue_size=20)
+        rospy.Subscriber(
+            self.raw_lidar_odom_topic, Odometry, self.raw_lidar_callback, queue_size=100
+        )
         rospy.Subscriber(
             self.lidar_status_topic, String, self.lidar_status_callback, queue_size=10
         )
@@ -187,13 +278,15 @@ class RtkLidarRelocalizer:
             )
 
         rospy.loginfo(
-            "rtk lidar relocalizer started: rtk=%s lidar=%s lidar_status=%s initialpose=%s yaw_source=%s auto=%s",
+            "rtk lidar relocalizer started: rtk=%s lidar=%s raw_lidar=%s lidar_status=%s initialpose=%s yaw_source=%s auto=%s require_healthy_3d=%s",
             self.rtk_odom_topic,
             self.lidar_odom_topic,
+            self.raw_lidar_odom_topic,
             self.lidar_status_topic,
             self.initialpose_topic,
             self.yaw_source,
             self.auto_enabled,
+            self.require_healthy_lidar_3d_pose,
         )
 
     def rtk_callback(self, msg: Odometry) -> None:
@@ -201,6 +294,17 @@ class RtkLidarRelocalizer:
 
     def lidar_callback(self, msg: Odometry) -> None:
         self.latest_lidar_msg = msg
+
+    def raw_lidar_callback(self, msg: Odometry) -> None:
+        pose = pose3d_from_odom(msg)
+        self.raw_lidar_history.append(pose)
+        if (
+            self.lidar_status_ok is True
+            and self.lidar_status_source_stamp is not None
+            and abs(pose.stamp - self.lidar_status_source_stamp)
+            <= self.lidar_status_stamp_tolerance
+        ):
+            self.maybe_update_healthy_lidar_3d_pose(pose)
 
     def lidar_status_callback(self, msg: String) -> None:
         text = msg.data.strip()
@@ -214,6 +318,17 @@ class RtkLidarRelocalizer:
             self.lidar_status_ok = None
         self.lidar_status_reason = fields.get("reason", "unknown_lidar_status")
         self.lidar_status_stamp = rospy.Time.now().to_sec()
+        self.lidar_status_source_stamp = None
+
+        source_stamp_text = fields.get("source_stamp")
+        if source_stamp_text is not None:
+            try:
+                self.lidar_status_source_stamp = float(source_stamp_text)
+            except ValueError:
+                self.lidar_status_source_stamp = None
+
+        if self.lidar_status_ok is True and self.lidar_status_source_stamp is not None:
+            self.update_healthy_lidar_3d_from_stamp(self.lidar_status_source_stamp)
 
     def rtk_fix_type_callback(self, msg: String) -> None:
         self.rtk_fix_type = msg.data.strip()
@@ -226,6 +341,89 @@ class RtkLidarRelocalizer:
     def publish_status(self, text: str) -> None:
         self.last_status = text
         self.status_pub.publish(String(data=text))
+
+    def update_healthy_lidar_3d_from_stamp(self, source_stamp: float) -> None:
+        best_pose: Optional[Pose3D] = None
+        best_delta: Optional[float] = None
+        for pose in self.raw_lidar_history:
+            delta = abs(pose.stamp - source_stamp)
+            if best_delta is None or delta < best_delta:
+                best_pose = pose
+                best_delta = delta
+
+        if (
+            best_pose is not None
+            and best_delta is not None
+            and best_delta <= self.lidar_status_stamp_tolerance
+        ):
+            self.maybe_update_healthy_lidar_3d_pose(best_pose)
+
+    def maybe_update_healthy_lidar_3d_pose(self, pose: Pose3D) -> bool:
+        values = (pose.x, pose.y, pose.z, pose.roll, pose.pitch, pose.yaw)
+        if not all(math.isfinite(value) for value in values):
+            self.last_healthy_lidar_3d_reject_reason = "non_finite_3d_pose"
+            return False
+
+        if self.healthy_lidar_max_abs_z > 0.0 and abs(pose.z) > self.healthy_lidar_max_abs_z:
+            self.last_healthy_lidar_3d_reject_reason = (
+                "abs_z_too_large z=%.3f max=%.3f"
+                % (pose.z, self.healthy_lidar_max_abs_z)
+            )
+            return False
+
+        max_rp = self.healthy_lidar_max_abs_roll_pitch
+        if max_rp > 0.0 and (abs(pose.roll) > max_rp or abs(pose.pitch) > max_rp):
+            self.last_healthy_lidar_3d_reject_reason = (
+                "roll_pitch_too_large roll_deg=%.2f pitch_deg=%.2f max_deg=%.2f"
+                % (math.degrees(pose.roll), math.degrees(pose.pitch), math.degrees(max_rp))
+            )
+            return False
+
+        previous = self.latest_healthy_lidar_3d_pose
+        if previous is not None and pose.stamp >= previous.stamp:
+            z_step = abs(pose.z - previous.z)
+            if self.healthy_lidar_max_z_step > 0.0 and z_step > self.healthy_lidar_max_z_step:
+                self.last_healthy_lidar_3d_reject_reason = (
+                    "z_step_too_large step=%.3f max=%.3f"
+                    % (z_step, self.healthy_lidar_max_z_step)
+                )
+                return False
+
+            roll_step = abs(wrap_angle(pose.roll - previous.roll))
+            pitch_step = abs(wrap_angle(pose.pitch - previous.pitch))
+            max_rp_step = self.healthy_lidar_max_roll_pitch_step
+            if max_rp_step > 0.0 and (
+                roll_step > max_rp_step or pitch_step > max_rp_step
+            ):
+                self.last_healthy_lidar_3d_reject_reason = (
+                    "roll_pitch_step_too_large roll_step_deg=%.2f pitch_step_deg=%.2f max_deg=%.2f"
+                    % (
+                        math.degrees(roll_step),
+                        math.degrees(pitch_step),
+                        math.degrees(max_rp_step),
+                    )
+                )
+                return False
+
+        self.latest_healthy_lidar_3d_pose = pose
+        self.last_healthy_lidar_3d_reject_reason = "none"
+        return True
+
+    def healthy_lidar_3d_pose_for_reset(
+        self, now: float
+    ) -> tuple[Optional[Pose3D], str]:
+        if self.latest_healthy_lidar_3d_pose is None:
+            return None, "no_healthy_lidar_3d_pose"
+
+        age = now - self.latest_healthy_lidar_3d_pose.stamp
+        if self.healthy_lidar_pose_timeout > 0.0 and age > self.healthy_lidar_pose_timeout:
+            return (
+                None,
+                "stale_healthy_lidar_3d_pose_age=%.3f timeout=%.3f"
+                % (age, self.healthy_lidar_pose_timeout),
+            )
+
+        return self.latest_healthy_lidar_3d_pose, "ok"
 
     def reset_auto_drift_baseline(self) -> None:
         self.auto_baseline_xy_delta = None
@@ -346,14 +544,22 @@ class RtkLidarRelocalizer:
             return None, "no_fresh_lidar_yaw"
         return None, "bad_yaw_source:%s" % self.yaw_source
 
-    def make_initialpose_msg(self, x: float, y: float, yaw: float) -> PoseWithCovarianceStamped:
+    def make_initialpose_msg(
+        self,
+        x: float,
+        y: float,
+        z: float,
+        roll: float,
+        pitch: float,
+        yaw: float,
+    ) -> PoseWithCovarianceStamped:
         msg = PoseWithCovarianceStamped()
         msg.header.stamp = rospy.Time.now()
         msg.header.frame_id = self.map_frame
         msg.pose.pose.position.x = x
         msg.pose.pose.position.y = y
-        msg.pose.pose.position.z = 0.0
-        qx, qy, qz, qw = yaw_to_quaternion(yaw)
+        msg.pose.pose.position.z = z
+        qx, qy, qz, qw = rpy_to_quaternion(roll, pitch, yaw)
         msg.pose.pose.orientation.x = qx
         msg.pose.pose.orientation.y = qy
         msg.pose.pose.orientation.z = qz
@@ -433,7 +639,21 @@ class RtkLidarRelocalizer:
         if yaw is None:
             return False, yaw_reason
 
-        msg = self.make_initialpose_msg(rtk_pose.x, rtk_pose.y, yaw)
+        healthy_3d_pose, healthy_3d_reason = self.healthy_lidar_3d_pose_for_reset(now)
+        if healthy_3d_pose is None:
+            if self.require_healthy_lidar_3d_pose:
+                return False, healthy_3d_reason
+            reset_z = 0.0
+            reset_roll = 0.0
+            reset_pitch = 0.0
+        else:
+            reset_z = healthy_3d_pose.z
+            reset_roll = healthy_3d_pose.roll
+            reset_pitch = healthy_3d_pose.pitch
+
+        msg = self.make_initialpose_msg(
+            rtk_pose.x, rtk_pose.y, reset_z, reset_roll, reset_pitch, yaw
+        )
         for index in range(max(1, self.publish_count)):
             self.initialpose_pub.publish(msg)
             if index + 1 < self.publish_count and self.publish_period > 0.0:
@@ -442,15 +662,23 @@ class RtkLidarRelocalizer:
         self.last_relocalize_time = now
         self.reset_auto_drift_baseline()
         xy_delta, yaw_delta, delta_text = self.current_delta_text(rtk_pose, lidar_pose)
+        healthy_3d_age = (
+            now - healthy_3d_pose.stamp if healthy_3d_pose is not None else float("nan")
+        )
         status = (
-            "ok=true reason=%s yaw_source=%s x=%.3f y=%.3f yaw_deg=%.2f "
-            "rtk_fix=%s rtk_position=%s %s"
+            "ok=true reason=%s yaw_source=%s x=%.3f y=%.3f z=%.3f "
+            "roll_deg=%.2f pitch_deg=%.2f yaw_deg=%.2f "
+            "lidar_3d_age=%.3f rtk_fix=%s rtk_position=%s %s"
             % (
                 reason,
                 yaw_reason,
                 rtk_pose.x,
                 rtk_pose.y,
+                reset_z,
+                math.degrees(reset_roll),
+                math.degrees(reset_pitch),
                 math.degrees(yaw),
+                healthy_3d_age,
                 self.rtk_fix_type,
                 self.rtk_position_type,
                 delta_text,
@@ -535,6 +763,25 @@ class RtkLidarRelocalizer:
             )
         )
 
+    def healthy_lidar_3d_text(self, now: float) -> str:
+        pose = self.latest_healthy_lidar_3d_pose
+        if pose is None:
+            return "healthy_lidar_3d=none healthy_lidar_3d_reject=%s" % (
+                self.last_healthy_lidar_3d_reject_reason
+            )
+        return (
+            "healthy_lidar_3d_age=%.3f healthy_lidar_z=%.3f "
+            "healthy_lidar_roll_deg=%.2f healthy_lidar_pitch_deg=%.2f "
+            "healthy_lidar_3d_reject=%s"
+            % (
+                now - pose.stamp,
+                pose.z,
+                math.degrees(pose.roll),
+                math.degrees(pose.pitch),
+                self.last_healthy_lidar_3d_reject_reason,
+            )
+        )
+
     def status_timer_callback(self, _event) -> None:
         now = rospy.Time.now().to_sec()
         if self.latest_rtk_msg is None:
@@ -552,7 +799,7 @@ class RtkLidarRelocalizer:
         else:
             _, _, delta_text = self.current_delta_text(rtk_pose, lidar_pose)
             status = (
-                "ok=%s reason=%s rtk_fix=%s rtk_position=%s yaw_source=%s %s %s %s"
+                "ok=%s reason=%s rtk_fix=%s rtk_position=%s yaw_source=%s %s %s %s %s"
                 % (
                     str(rtk_ok).lower(),
                     rtk_quality_reason,
@@ -561,6 +808,7 @@ class RtkLidarRelocalizer:
                     self.yaw_source,
                     delta_text,
                     self.auto_baseline_text(),
+                    self.healthy_lidar_3d_text(now),
                     self.lidar_status_text(now),
                 )
             )
