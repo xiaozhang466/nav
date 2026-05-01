@@ -38,6 +38,10 @@ healthy_lidar_max_roll_pitch_step_deg: 10.0
 # centimeter-level RTK/LiDAR differences do not cause repeated resets.
 auto_enabled: true
 auto_check_rate: 1.0
+# When RTK is fixed but the map<-rtk_map alignment TF is not ready yet, automatic
+# relocalization stays idle and reports a throttled not-ready status instead of
+# emitting repeated auto_failed/auto_tf_failed diagnostics.
+auto_not_ready_status_interval: 5.0
 auto_min_xy_delta: 1.0
 auto_min_yaw_delta_deg: 25.0
 # Do not trigger again on a stable RTK/LiDAR bias. After startup or after each

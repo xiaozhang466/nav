@@ -11,6 +11,7 @@
       - waypoint patrol auto-start
       - RTK-to-LiDAR automatic relocalization
       - passive navigation health monitor + CSV diagnostics
+      - optional high-rate TF diagnostic CSV logger
   -->
 
   <arg name="launch_lidar" default="true" />
@@ -19,6 +20,7 @@
   <arg name="launch_navigation" default="true" />
   <arg name="launch_relocalizer" default="true" />
   <arg name="launch_nav_health" default="true" />
+  <arg name="launch_tf_diagnostics" default="false" />
 
   <arg name="rviz" default="true" />
   <arg name="lidar_rviz" default="false" />
@@ -53,6 +55,8 @@
   <arg name="nav_health_config" default="$(find um980_driver)/config/nav_health_monitor.yaml" />
   <arg name="nav_health_log_enabled" default="true" />
   <arg name="nav_health_log_dir" default="~/.ros/nav_health" />
+  <arg name="tf_diagnostics_rate" default="20.0" />
+  <arg name="tf_diagnostics_log_dir" default="$(arg nav_health_log_dir)" />
 
   <include if="$(arg launch_lidar)" file="$(find lslidar_c16_decoder)/launch/lslidar_c16.launch">
     <arg name="rviz" value="$(arg lidar_rviz)" />
@@ -99,5 +103,13 @@
     <arg name="config" value="$(arg nav_health_config)" />
     <arg name="log_enabled" value="$(arg nav_health_log_enabled)" />
     <arg name="log_dir" value="$(arg nav_health_log_dir)" />
+  </include>
+
+  <include if="$(arg launch_tf_diagnostics)" file="$(find um980_driver)/launch/tf_diagnostic_logger.launch">
+    <arg name="rate" value="$(arg tf_diagnostics_rate)" />
+    <arg name="log_dir" value="$(arg tf_diagnostics_log_dir)" />
+    <arg name="map_frame" value="map" />
+    <arg name="odom_frame" value="$(arg ranger_odom_frame)" />
+    <arg name="base_frame" value="$(arg ranger_base_frame)" />
   </include>
 </launch>

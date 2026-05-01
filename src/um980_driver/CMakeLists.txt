@@ -53,6 +53,7 @@ catkin_install_python(PROGRAMS
   scripts/nav_health_monitor.py
   scripts/rtk_lidar_relocalizer.py
   scripts/static_transform_from_params.py
+  scripts/tf_diagnostic_logger.py
   scripts/um980_ros_node.py
   scripts/waypoint_patrol_node.py
   scripts/waypoint_visualizer.py

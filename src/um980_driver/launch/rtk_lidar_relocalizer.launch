@@ -9,6 +9,7 @@
   <arg name="yaw_source" default="rtk" />
   <arg name="auto_enabled" default="true" />
   <arg name="auto_check_rate" default="1.0" />
+  <arg name="auto_not_ready_status_interval" default="5.0" />
   <arg name="auto_min_xy_delta" default="1.0" />
   <arg name="auto_min_yaw_delta_deg" default="25.0" />
   <arg name="auto_relocalize_on_lidar_unhealthy" default="true" />
@@ -32,6 +33,7 @@
     <param name="yaw_source" value="$(arg yaw_source)" />
     <param name="auto_enabled" value="$(arg auto_enabled)" />
     <param name="auto_check_rate" value="$(arg auto_check_rate)" />
+    <param name="auto_not_ready_status_interval" value="$(arg auto_not_ready_status_interval)" />
     <param name="auto_min_xy_delta" value="$(arg auto_min_xy_delta)" />
     <param name="auto_min_yaw_delta_deg" value="$(arg auto_min_yaw_delta_deg)" />
     <param name="auto_relocalize_on_lidar_unhealthy" value="$(arg auto_relocalize_on_lidar_unhealthy)" />

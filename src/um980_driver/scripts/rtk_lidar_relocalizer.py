@@ -193,6 +193,9 @@ class RtkLidarRelocalizer:
 
         self.auto_enabled = bool(rospy.get_param("~auto_enabled", False))
         self.auto_check_rate = float(rospy.get_param("~auto_check_rate", 1.0))
+        self.auto_not_ready_status_interval = float(
+            rospy.get_param("~auto_not_ready_status_interval", 5.0)
+        )
         self.auto_min_xy_delta = float(rospy.get_param("~auto_min_xy_delta", 1.0))
         self.auto_min_yaw_delta = math.radians(
             float(rospy.get_param("~auto_min_yaw_delta_deg", 25.0))
@@ -236,6 +239,7 @@ class RtkLidarRelocalizer:
         self.rtk_position_type_stamp: Optional[float] = None
         self.last_relocalize_time = 0.0
         self.last_status = "ok=false reason=waiting_for_data"
+        self.last_auto_not_ready_status_time = float("-inf")
         self.auto_baseline_xy_delta: Optional[float] = None
         self.auto_baseline_yaw_delta: Optional[float] = None
         self.auto_baseline_stamp: Optional[float] = None
@@ -341,6 +345,16 @@ class RtkLidarRelocalizer:
     def publish_status(self, text: str) -> None:
         self.last_status = text
         self.status_pub.publish(String(data=text))
+
+    def publish_auto_not_ready_status(self, now: float, reason: str) -> None:
+        if (
+            self.auto_not_ready_status_interval > 0.0
+            and now - self.last_auto_not_ready_status_time
+            < self.auto_not_ready_status_interval
+        ):
+            return
+        self.last_auto_not_ready_status_time = now
+        self.publish_status("ok=false reason=%s" % reason)
 
     def update_healthy_lidar_3d_from_stamp(self, source_stamp: float) -> None:
         best_pose: Optional[Pose3D] = None
@@ -709,16 +723,23 @@ class RtkLidarRelocalizer:
         if self.latest_rtk_msg is None:
             return
 
-        rtk_pose, rtk_reason = self.transform_pose_to_map(self.latest_rtk_msg)
-        if rtk_pose is None:
-            self.publish_status("ok=false reason=auto_tf_failed:%s" % rtk_reason)
-            return
-        if not self.latest_pose_is_fresh(rtk_pose, now):
-            self.publish_status("ok=false reason=auto_stale_rtk_odom_age=%.3f" % (now - rtk_pose.stamp))
-            return
-
         rtk_ok, rtk_reason = self.rtk_is_usable()
         if not rtk_ok:
+            self.reset_auto_drift_baseline()
+            return
+
+        rtk_pose, rtk_reason = self.transform_pose_to_map(self.latest_rtk_msg)
+        if rtk_pose is None:
+            self.reset_auto_drift_baseline()
+            self.publish_auto_not_ready_status(
+                now, "waiting_for_rtk_map_tf:%s" % rtk_reason
+            )
+            return
+        if not self.latest_pose_is_fresh(rtk_pose, now):
+            self.reset_auto_drift_baseline()
+            self.publish_auto_not_ready_status(
+                now, "waiting_for_fresh_rtk_odom_age=%.3f" % (now - rtk_pose.stamp)
+            )
             return
 
         lidar_pose, lidar_reason, lidar_fresh = self.latest_lidar_pose_in_map(now)
@@ -788,12 +809,29 @@ class RtkLidarRelocalizer:
             self.status_pub.publish(String(data=self.last_status))
             return
 
+        rtk_ok, rtk_quality_reason = self.rtk_is_usable()
+        if not rtk_ok:
+            status = (
+                "ok=false reason=%s rtk_fix=%s rtk_position=%s yaw_source=%s "
+                "delta=unavailable_rtk_unusable %s %s %s"
+                % (
+                    rtk_quality_reason,
+                    self.rtk_fix_type,
+                    self.rtk_position_type,
+                    self.yaw_source,
+                    self.auto_baseline_text(),
+                    self.healthy_lidar_3d_text(now),
+                    self.lidar_status_text(now),
+                )
+            )
+            self.status_pub.publish(String(data=status))
+            return
+
         rtk_pose, rtk_reason = self.transform_pose_to_map(self.latest_rtk_msg)
         lidar_pose = None
         if self.latest_lidar_msg is not None:
             lidar_pose, _ = self.transform_pose_to_map(self.latest_lidar_msg)
 
-        rtk_ok, rtk_quality_reason = self.rtk_is_usable()
         if rtk_pose is None:
             status = "ok=false reason=%s %s" % (rtk_reason, self.lidar_status_text(now))
         else:

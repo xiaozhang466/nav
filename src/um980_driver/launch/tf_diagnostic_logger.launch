@@ -1,0 +1,28 @@
+<launch>
+  <arg name="enabled" default="true" />
+  <arg name="rate" default="20.0" />
+  <arg name="log_dir" default="~/.ros/nav_health" />
+  <arg name="filename_prefix" default="tf_diagnostics" />
+  <arg name="map_frame" default="map" />
+  <arg name="odom_frame" default="odom" />
+  <arg name="base_frame" default="base_link" />
+  <arg name="lookup_timeout" default="0.01" />
+  <arg name="tf_cache_time" default="10.0" />
+  <arg name="flush_interval" default="1.0" />
+
+  <node if="$(arg enabled)"
+        pkg="um980_driver"
+        type="tf_diagnostic_logger.py"
+        name="tf_diagnostic_logger"
+        output="screen">
+    <param name="rate" value="$(arg rate)" />
+    <param name="log_dir" value="$(arg log_dir)" />
+    <param name="filename_prefix" value="$(arg filename_prefix)" />
+    <param name="map_frame" value="$(arg map_frame)" />
+    <param name="odom_frame" value="$(arg odom_frame)" />
+    <param name="base_frame" value="$(arg base_frame)" />
+    <param name="lookup_timeout" value="$(arg lookup_timeout)" />
+    <param name="tf_cache_time" value="$(arg tf_cache_time)" />
+    <param name="flush_interval" value="$(arg flush_interval)" />
+  </node>
+</launch>

@@ -211,6 +211,18 @@ class NavHealthMonitor:
         self.rtk_lidar_yaw_warn = math.radians(
             float(rospy.get_param("~rtk_lidar_yaw_warn_deg", 20.0))
         )
+        self.rtk_lidar_delta_requires_valid_rtk = bool(
+            rospy.get_param("~rtk_lidar_delta_requires_valid_rtk", True)
+        )
+        self.rtk_lidar_delta_good_fix_types = set(
+            rospy.get_param("~rtk_lidar_delta_good_fix_types", ["rtk_fixed"])
+        )
+        self.rtk_lidar_delta_good_position_types = set(
+            rospy.get_param(
+                "~rtk_lidar_delta_good_position_types",
+                ["NARROW_INT", "L1_INT"],
+            )
+        )
         self.pose_jump_xy = float(rospy.get_param("~pose_jump_xy", 0.35))
         self.pose_jump_speed = float(rospy.get_param("~pose_jump_speed", 1.5))
         self.pose_jump_yaw = math.radians(float(rospy.get_param("~pose_jump_yaw_deg", 20.0)))
@@ -685,6 +697,10 @@ class NavHealthMonitor:
         )
 
     def compute_rtk_lidar_delta(self) -> Tuple[Optional[float], Optional[float]]:
+        rtk_ok, _reason = self.rtk_lidar_delta_rtk_is_usable(rospy.Time.now().to_sec())
+        if not rtk_ok:
+            return None, None
+
         with self.lock:
             raw_rtk = self.rtk_pose
             raw_lidar = self.lidar_pose
@@ -700,14 +716,45 @@ class NavHealthMonitor:
         yaw = abs(wrap_angle(rtk.yaw - lidar.yaw))
         return xy, yaw
 
+    def rtk_lidar_delta_rtk_is_usable(self, now: float) -> Tuple[bool, str]:
+        if not self.rtk_lidar_delta_requires_valid_rtk:
+            return True, "ok"
+
+        with self.lock:
+            fix = self.rtk_fix_type
+            position = self.rtk_position_type
+
+        if fix is None or position is None:
+            return False, "waiting_for_rtk_status"
+        if now - fix.received > self.topic_timeout:
+            return False, "stale_rtk_fix_type"
+        if now - position.received > self.topic_timeout:
+            return False, "stale_rtk_position_type"
+        if self.rtk_lidar_delta_good_fix_types and fix.text not in self.rtk_lidar_delta_good_fix_types:
+            return False, "bad_rtk_fix_type:%s" % fix.text
+        if (
+            self.rtk_lidar_delta_good_position_types
+            and position.text not in self.rtk_lidar_delta_good_position_types
+        ):
+            return False, "bad_rtk_position_type:%s" % position.text
+        return True, "ok"
+
     def check_periodic_events(self, now: float) -> None:
         xy, yaw = self.compute_rtk_lidar_delta()
         if xy is not None and yaw is not None:
             if xy > self.rtk_lidar_xy_warn or yaw > self.rtk_lidar_yaw_warn:
+                with self.lock:
+                    fix = self.rtk_fix_type.text if self.rtk_fix_type is not None else "unknown"
+                    position = (
+                        self.rtk_position_type.text
+                        if self.rtk_position_type is not None
+                        else "unknown"
+                    )
                 self.add_event(
                     "WARN",
                     "rtk_lidar_delta",
-                    "xy=%.3f yaw_deg=%.1f" % (xy, math.degrees(yaw)),
+                    "xy=%.3f yaw_deg=%.1f rtk=%s/%s"
+                    % (xy, math.degrees(yaw), fix, position),
                 )
 
         with self.lock:

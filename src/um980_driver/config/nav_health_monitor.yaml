@@ -35,9 +35,14 @@ event_hold_time: 5.0
 event_cooldown: 3.0
 
 # LiDAR/RTK disagreement warning. This does not trigger relocalization; it only
-# records a diagnostic event so we can correlate it with jitter.
+# records a diagnostic event so we can correlate it with jitter. Only trusted
+# RTK statuses are allowed to produce this warning; otherwise no_fix/NONE
+# samples can look like huge LiDAR drift and pollute the log.
 rtk_lidar_xy_warn: 0.8
 rtk_lidar_yaw_warn_deg: 20.0
+rtk_lidar_delta_requires_valid_rtk: true
+rtk_lidar_delta_good_fix_types: [rtk_fixed]
+rtk_lidar_delta_good_position_types: [NARROW_INT, L1_INT]
 
 # Global navigation pose jump detection.
 pose_jump_xy: 0.35

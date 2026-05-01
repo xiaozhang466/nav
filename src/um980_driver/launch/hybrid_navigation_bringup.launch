@@ -13,6 +13,7 @@
   <arg name="launch_move_base" default="true" />
   <arg name="launch_waypoint_visualizer" default="true" />
   <arg name="launch_waypoint_patrol" default="false" />
+  <arg name="launch_tf_diagnostics" default="false" />
   <arg name="rviz" default="true" />
 
   <!-- ── sensor / localization switches ── -->
@@ -53,6 +54,8 @@
   <arg name="lidar_odom_topic" default="/odometry/lidar_map" />
   <arg name="global_nav_output_topic" default="/odometry/global_nav" />
   <arg name="publish_global_tf" default="true" />
+  <arg name="tf_diagnostics_rate" default="20.0" />
+  <arg name="tf_diagnostics_log_dir" default="~/.ros/nav_health" />
 
   <!-- ================================================================== -->
   <!-- Localization (inlined from hybrid_localization / rtk_aligned)       -->
@@ -159,6 +162,15 @@
     <arg name="waypoints_file" value="$(arg waypoints_file)" />
     <arg name="auto_start" value="$(arg auto_start_waypoint_patrol)" />
     <arg name="loop" value="$(arg loop_waypoint_patrol)" />
+  </include>
+
+  <!-- Optional high-rate TF CSV diagnostics for map->odom jitter analysis. -->
+  <include if="$(arg launch_tf_diagnostics)" file="$(find um980_driver)/launch/tf_diagnostic_logger.launch">
+    <arg name="rate" value="$(arg tf_diagnostics_rate)" />
+    <arg name="log_dir" value="$(arg tf_diagnostics_log_dir)" />
+    <arg name="map_frame" value="$(arg map_frame)" />
+    <arg name="odom_frame" value="$(arg odom_frame)" />
+    <arg name="base_frame" value="$(arg base_link_frame)" />
   </include>
 
   <!-- ================================================================== -->
