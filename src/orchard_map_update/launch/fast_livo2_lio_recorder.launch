@@ -1,0 +1,22 @@
+<launch>
+  <arg name="config" default="$(find orchard_map_update)/config/fast_livo2_lio_recorder.yaml" />
+  <arg name="pointcloud_topic" default="/lslidar_point_cloud" />
+  <arg name="imu_topic" default="/IMU_data" />
+  <arg name="map_frame" default="map" />
+  <arg name="pose_frame" default="lslidar" />
+  <arg name="auto_start" default="false" />
+  <arg name="session_root" default="~/.ros/map_update_sessions" />
+
+  <node pkg="orchard_map_update"
+        type="fast_livo2_lio_recorder_node"
+        name="fast_livo2_lio_recorder"
+        output="screen">
+    <rosparam file="$(arg config)" command="load" />
+    <param name="pointcloud_topic" value="$(arg pointcloud_topic)" />
+    <param name="imu_topic" value="$(arg imu_topic)" />
+    <param name="map_frame" value="$(arg map_frame)" />
+    <param name="pose_frame" value="$(arg pose_frame)" />
+    <param name="auto_start" value="$(arg auto_start)" />
+    <param name="session_root" value="$(arg session_root)" />
+  </node>
+</launch>

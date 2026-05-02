@@ -12,6 +12,7 @@
       - RTK-to-LiDAR automatic relocalization
       - passive navigation health monitor + CSV diagnostics
       - optional high-rate TF diagnostic CSV logger
+      - optional FAST-LIVO2 compatible runtime map-update recorder
   -->
 
   <arg name="launch_lidar" default="true" />
@@ -21,6 +22,7 @@
   <arg name="launch_relocalizer" default="true" />
   <arg name="launch_nav_health" default="true" />
   <arg name="launch_tf_diagnostics" default="false" />
+  <arg name="launch_map_update_recorder" default="false" />
 
   <arg name="rviz" default="true" />
   <arg name="lidar_rviz" default="false" />
@@ -57,6 +59,8 @@
   <arg name="nav_health_log_dir" default="~/.ros/nav_health" />
   <arg name="tf_diagnostics_rate" default="20.0" />
   <arg name="tf_diagnostics_log_dir" default="$(arg nav_health_log_dir)" />
+  <arg name="map_update_auto_start" default="false" />
+  <arg name="map_update_session_root" default="~/.ros/map_update_sessions" />
 
   <include if="$(arg launch_lidar)" file="$(find lslidar_c16_decoder)/launch/lslidar_c16.launch">
     <arg name="rviz" value="$(arg lidar_rviz)" />
@@ -111,5 +115,14 @@
     <arg name="map_frame" value="map" />
     <arg name="odom_frame" value="$(arg ranger_odom_frame)" />
     <arg name="base_frame" value="$(arg ranger_base_frame)" />
+  </include>
+
+  <include if="$(arg launch_map_update_recorder)" file="$(find orchard_map_update)/launch/fast_livo2_lio_recorder.launch">
+    <arg name="pointcloud_topic" value="/lslidar_point_cloud" />
+    <arg name="imu_topic" value="/IMU_data" />
+    <arg name="map_frame" value="map" />
+    <arg name="pose_frame" value="lslidar" />
+    <arg name="auto_start" value="$(arg map_update_auto_start)" />
+    <arg name="session_root" value="$(arg map_update_session_root)" />
   </include>
 </launch>

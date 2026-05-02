@@ -49,6 +49,10 @@ test_results/
 *.laz
 *.bt
 *.pcap
+map_update_sessions/
+
+# FAST-LIVO2 recorder runtime debug/output
+/src/orchard_map_update/Log/
 
 # Local RTK/NTRIP credentials
 /src/um980_driver/config/rtk_client.ini

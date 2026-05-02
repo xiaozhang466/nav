@@ -1,0 +1,77 @@
+# Embedded FAST-LIVO2 LIO front-end recorder for orchard map updates.
+#
+# This node runs FAST-LIVO2 preprocessing, IMU undistortion, voxel-map LIO
+# state update, and FAST-LIVO2-style downsampling inside this workspace.
+# It saves the local LiDAR-frame PCD but writes poses from the existing map TF,
+# avoiding a new FAST-LIVO2 world/map coordinate system in the output files.
+
+pointcloud_topic: /lslidar_point_cloud
+imu_topic: /IMU_data
+
+session_root: ~/.ros/map_update_sessions
+session_prefix: fast_livo2_lio
+auto_start: false
+
+map_frame: map
+pose_frame: lslidar
+tf_timeout: 0.05
+allow_latest_tf_fallback: false
+
+time_offset:
+  lidar_time_offset: -0.02
+
+extrin_calib:
+  extrinsic_T: [0, 0, 0.30]
+  extrinsic_R: [1, 0, 0,
+                0, 1, 0,
+                0, 0, 1]
+
+preprocess:
+  point_filter_num: 1
+  filter_size_surf: 0.1
+  lidar_type: 2
+  scan_line: 16
+  blind: 0.5
+
+imu:
+  imu_en: true
+  imu_int_frame: 30
+  acc_cov: 0.5
+  gyr_cov: 0.3
+  b_acc_cov: 0.0001
+  b_gyr_cov: 0.0001
+
+sync:
+  imu_init_buffer_time: 2.0
+  imu_overlap_time: 0.02
+  imu_prune_keep_time: 1.0
+  imu_end_tolerance: 0.02
+  max_imu_buffer_size: 5000
+
+keyframe:
+  min_distance: 0.5
+  min_yaw_deg: 8.0
+  min_time: 0.5
+  max_time: 5.0
+  min_points: 300
+
+uav:
+  gravity_align_en: true
+
+publish:
+  pub_plane_en: false
+
+lio:
+  max_iterations: 5
+  dept_err: 0.02
+  beam_err: 0.05
+  min_eigen_value: 0.0025
+  voxel_size: 0.5
+  max_layer: 2
+  max_points_num: 50
+  layer_init_num: [5, 5, 5, 5, 5]
+
+local_map:
+  map_sliding_en: false
+  half_map_size: 100
+  sliding_thresh: 8
