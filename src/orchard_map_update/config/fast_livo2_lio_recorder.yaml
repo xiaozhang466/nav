@@ -2,8 +2,8 @@
 #
 # This node runs FAST-LIVO2 preprocessing, IMU undistortion, voxel-map LIO
 # state update, and FAST-LIVO2-style downsampling inside this workspace.
-# It saves the local LiDAR-frame PCD but writes poses from the existing map TF,
-# avoiding a new FAST-LIVO2 world/map coordinate system in the output files.
+# It saves every valid local LiDAR-frame PCD and writes poses from the existing
+# map TF, avoiding a new FAST-LIVO2 world/map coordinate system in the output files.
 
 pointcloud_topic: /lslidar_point_cloud
 imu_topic: /IMU_data
@@ -48,11 +48,7 @@ sync:
   imu_end_tolerance: 0.02
   max_imu_buffer_size: 5000
 
-keyframe:
-  min_distance: 0.5
-  min_yaw_deg: 8.0
-  min_time: 0.5
-  max_time: 5.0
+frames:
   min_points: 300
 
 uav:

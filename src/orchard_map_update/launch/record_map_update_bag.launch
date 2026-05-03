@@ -1,0 +1,68 @@
+<launch>
+  <arg name="output_dir" default="$(find orchard_map_update)/map_update_bags" />
+  <arg name="bag_prefix" default="orchard_map_update" />
+  <arg name="split_args" default="--split --duration=3600" />
+  <arg name="compression_args" default="" />
+  <arg name="buffsize_mb" default="2048" />
+  <arg name="chunksize_kb" default="768" />
+  <arg name="record_required" default="false" />
+
+  <arg name="pointcloud_topic" default="/lslidar_point_cloud" />
+  <arg name="imu_topic" default="/IMU_data" />
+  <arg name="imu_enu_topic" default="/IMU_data_enu" />
+  <arg name="raw_lidar_odom_topic" default="/Odometry" />
+  <arg name="global_odom_topic" default="/odometry/global_nav" />
+  <arg name="lidar_odom_topic" default="/odometry/lidar_map" />
+  <arg name="rtk_odom_topic" default="/odometry/rtk_map" />
+  <arg name="local_odom_topic" default="/odometry/filtered" />
+  <arg name="gps_odom_topic" default="/odometry/gps" />
+  <arg name="global_rtk_odom_topic" default="/odometry/global" />
+  <arg name="rtk_fix_topic" default="/rtk/fix" />
+  <arg name="rtk_fix_filtered_topic" default="/rtk/fix_filtered" />
+  <arg name="rtk_fix_type_topic" default="/rtk/fix_type" />
+  <arg name="rtk_position_type_topic" default="/rtk/position_type" />
+  <arg name="chassis_odom_topic" default="/ranger_base_node/odom" />
+  <arg name="cmd_vel_topic" default="/cmd_vel" />
+  <arg name="cmd_vel_nav_topic" default="/cmd_vel_nav" />
+  <arg name="nav_health_status_topic" default="/nav_health/status" />
+  <arg name="nav_health_events_topic" default="/nav_health/events" />
+  <arg name="relocalizer_status_topic" default="/rtk_lidar_relocalizer/status" />
+  <arg name="move_base_status_topic" default="/move_base/status" />
+  <arg name="rpp_status_topic" default="/move_base/RegulatedPurePursuitPlanner/status" />
+  <arg name="rpp_local_plan_topic" default="/move_base/RegulatedPurePursuitPlanner/local_plan" />
+  <arg name="extra_topics" default="" />
+
+  <node pkg="rosbag"
+        type="record"
+        name="map_update_bag_recorder"
+        output="screen"
+        required="$(arg record_required)"
+        launch-prefix="bash -c 'mkdir -p $(arg output_dir); exec &quot;$0&quot; &quot;$@&quot;'"
+        args="$(arg split_args) $(arg compression_args) --buffsize=$(arg buffsize_mb) --chunksize=$(arg chunksize_kb) --output-prefix=$(arg output_dir)/$(arg bag_prefix)
+              /tf
+              /tf_static
+              $(arg pointcloud_topic)
+              $(arg imu_topic)
+              $(arg imu_enu_topic)
+              $(arg raw_lidar_odom_topic)
+              $(arg global_odom_topic)
+              $(arg lidar_odom_topic)
+              $(arg rtk_odom_topic)
+              $(arg local_odom_topic)
+              $(arg gps_odom_topic)
+              $(arg global_rtk_odom_topic)
+              $(arg rtk_fix_topic)
+              $(arg rtk_fix_filtered_topic)
+              $(arg rtk_fix_type_topic)
+              $(arg rtk_position_type_topic)
+              $(arg chassis_odom_topic)
+              $(arg cmd_vel_topic)
+              $(arg cmd_vel_nav_topic)
+              $(arg nav_health_status_topic)
+              $(arg nav_health_events_topic)
+              $(arg relocalizer_status_topic)
+              $(arg move_base_status_topic)
+              $(arg rpp_status_topic)
+              $(arg rpp_local_plan_topic)
+              $(arg extra_topics)" />
+</launch>

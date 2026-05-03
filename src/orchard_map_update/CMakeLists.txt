@@ -11,11 +11,14 @@ find_package(catkin REQUIRED COMPONENTS
   nav_msgs
   pcl_conversions
   pcl_ros
+  rosbag
   roscpp
   sensor_msgs
   std_msgs
   std_srvs
   tf
+  tf2
+  tf2_msgs
   tf2_ros
   visualization_msgs
 )
@@ -33,11 +36,14 @@ catkin_package(
     nav_msgs
     pcl_conversions
     pcl_ros
+    rosbag
     roscpp
     sensor_msgs
     std_msgs
     std_srvs
     tf
+    tf2
+    tf2_msgs
     tf2_ros
     visualization_msgs
 )
@@ -81,7 +87,23 @@ if(OpenMP_CXX_FOUND)
   target_link_libraries(fast_livo2_lio_recorder_node OpenMP::OpenMP_CXX)
 endif()
 
-install(TARGETS fast_livo2_frontend fast_livo2_lio_recorder_node
+add_executable(fast_livo2_bag_frame_exporter
+  src/fast_livo2_bag_frame_exporter.cpp
+)
+add_dependencies(fast_livo2_bag_frame_exporter ${catkin_EXPORTED_TARGETS})
+target_compile_definitions(fast_livo2_bag_frame_exporter
+  PRIVATE ROOT_DIR="${CMAKE_CURRENT_SOURCE_DIR}/"
+)
+target_link_libraries(fast_livo2_bag_frame_exporter
+  fast_livo2_frontend
+  ${catkin_LIBRARIES}
+  ${PCL_LIBRARIES}
+)
+if(OpenMP_CXX_FOUND)
+  target_link_libraries(fast_livo2_bag_frame_exporter OpenMP::OpenMP_CXX)
+endif()
+
+install(TARGETS fast_livo2_frontend fast_livo2_lio_recorder_node fast_livo2_bag_frame_exporter
   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}

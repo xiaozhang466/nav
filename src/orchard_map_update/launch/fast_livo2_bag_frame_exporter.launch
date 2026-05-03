@@ -1,0 +1,56 @@
+<launch>
+  <arg name="bag" default="" />
+  <arg name="output_dir" default="auto" />
+  <arg name="pointcloud_topic" default="/lslidar_point_cloud" />
+  <arg name="imu_topic" default="/IMU_data" />
+  <arg name="map_frame" default="map" />
+  <arg name="pose_frame" default="lslidar" />
+  <arg name="require_pose" default="true" />
+  <arg name="lidar_type" default="2" />
+  <arg name="scan_line" default="16" />
+  <arg name="point_filter_num" default="1" />
+  <arg name="blind" default="0.5" />
+  <arg name="lidar_time_offset" default="-0.02" />
+  <arg name="imu_en" default="true" />
+  <arg name="imu_init_frame_num" default="30" />
+  <arg name="imu_init_buffer_time" default="2.0" />
+  <arg name="imu_overlap_time" default="0.02" />
+  <arg name="imu_end_tolerance" default="0.02" />
+  <arg name="gravity_align_en" default="true" />
+  <arg name="tf_cache_time" default="86400" />
+  <arg name="lio_state_update" default="true" />
+  <arg name="downsample" default="true" />
+  <arg name="filter_size_surf" default="0.1" />
+  <arg name="min_points" default="1" />
+  <arg name="max_frames" default="0" />
+
+  <node pkg="orchard_map_update"
+        type="fast_livo2_bag_frame_exporter"
+        name="fast_livo2_bag_frame_exporter"
+        output="screen"
+        required="true"
+        args="--bag $(arg bag)
+              --output $(arg output_dir)
+              --pointcloud_topic $(arg pointcloud_topic)
+              --imu_topic $(arg imu_topic)
+              --map_frame $(arg map_frame)
+              --pose_frame $(arg pose_frame)
+              --require_pose $(arg require_pose)
+              --lidar_type $(arg lidar_type)
+              --scan_line $(arg scan_line)
+              --point_filter_num $(arg point_filter_num)
+              --blind $(arg blind)
+              --lidar_time_offset $(arg lidar_time_offset)
+              --imu_en $(arg imu_en)
+              --imu_init_frame_num $(arg imu_init_frame_num)
+              --imu_init_buffer_time $(arg imu_init_buffer_time)
+              --imu_overlap_time $(arg imu_overlap_time)
+              --imu_end_tolerance $(arg imu_end_tolerance)
+              --gravity_align_en $(arg gravity_align_en)
+              --tf_cache_time $(arg tf_cache_time)
+              --lio_state_update $(arg lio_state_update)
+              --downsample $(arg downsample)
+              --filter_size_surf $(arg filter_size_surf)
+              --min_points $(arg min_points)
+              --max_frames $(arg max_frames)" />
+</launch>

@@ -59,23 +59,6 @@ std::string expandUser(const std::string &path)
   return path;
 }
 
-double wrapAngle(double angle)
-{
-  while (angle > M_PI) {
-    angle -= 2.0 * M_PI;
-  }
-  while (angle < -M_PI) {
-    angle += 2.0 * M_PI;
-  }
-  return angle;
-}
-
-double yawFromQuaternion(const Eigen::Quaterniond &q)
-{
-  return std::atan2(
-      2.0 * (q.w() * q.z() + q.x() * q.y()),
-      1.0 - 2.0 * (q.y() * q.y() + q.z() * q.z()));
-}
 }  // namespace
 
 class FastLivo2LioRecorder
@@ -94,8 +77,6 @@ public:
     start_srv_ = pnh_.advertiseService("start", &FastLivo2LioRecorder::handleStart, this);
     stop_srv_ = pnh_.advertiseService("stop", &FastLivo2LioRecorder::handleStop, this);
     status_srv_ = pnh_.advertiseService("status", &FastLivo2LioRecorder::handleStatus, this);
-    force_keyframe_srv_ = pnh_.advertiseService(
-        "force_keyframe", &FastLivo2LioRecorder::handleForceKeyframe, this);
     status_timer_ = nh_.createTimer(ros::Duration(1.0), &FastLivo2LioRecorder::statusTimer, this);
 
     if (auto_start_) {
@@ -122,15 +103,6 @@ private:
     double stamp = 0.0;
     Eigen::Vector3d t = Eigen::Vector3d::Zero();
     Eigen::Quaterniond q = Eigen::Quaterniond::Identity();
-  };
-
-  struct KeyframeDecision
-  {
-    bool save = false;
-    std::string reason;
-    double distance = 0.0;
-    double yaw_delta = 0.0;
-    double dt = 0.0;
   };
 
   void loadParams()
@@ -169,13 +141,7 @@ private:
     pnh_.param<double>("sync/imu_end_tolerance", imu_end_tolerance_, 0.02);
     pnh_.param<int>("sync/max_imu_buffer_size", max_imu_buffer_size_, 5000);
 
-    pnh_.param<double>("keyframe/min_distance", min_keyframe_distance_, 0.5);
-    double min_yaw_deg = 8.0;
-    pnh_.param<double>("keyframe/min_yaw_deg", min_yaw_deg, 8.0);
-    min_keyframe_yaw_ = min_yaw_deg * M_PI / 180.0;
-    pnh_.param<double>("keyframe/min_time", min_keyframe_time_, 0.5);
-    pnh_.param<double>("keyframe/max_time", max_keyframe_time_, 5.0);
-    pnh_.param<int>("keyframe/min_points", min_keyframe_points_, 300);
+    pnh_.param<int>("frames/min_points", min_frame_points_, 300);
 
     std::vector<double> extrin_t = {0.0, 0.0, 0.3};
     std::vector<double> extrin_r = {1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0};
@@ -232,8 +198,6 @@ private:
     gravity_align_finished_ = false;
     first_lidar_seen_ = false;
     last_lio_update_time_ = -1.0;
-    last_keyframe_pose_.reset();
-    force_next_keyframe_ = false;
   }
 
   void releaseVoxelMap()
@@ -298,18 +262,12 @@ private:
       return;
     }
 
-    KeyframeDecision decision = decideKeyframe(pose);
-    if (!decision.save) {
-      skipFrame(decision.reason);
-      return;
-    }
-
-    if (static_cast<int>(feats_down_body_->size()) < min_keyframe_points_) {
+    if (static_cast<int>(feats_down_body_->size()) < min_frame_points_) {
       rejectFrame("too_few_downsampled_points:" + std::to_string(feats_down_body_->size()));
       return;
     }
 
-    if (!saveKeyframe(frame_end, pose, decision)) {
+    if (!saveFrame(frame_end, pose)) {
       return;
     }
   }
@@ -477,54 +435,7 @@ private:
                  .normalized();
   }
 
-  KeyframeDecision decideKeyframe(const ExternalPose &pose)
-  {
-    if (force_next_keyframe_) {
-      force_next_keyframe_ = false;
-      return makeDecision(true, "forced", pose);
-    }
-    if (!last_keyframe_pose_) {
-      return makeDecision(true, "first", pose);
-    }
-
-    KeyframeDecision d = makeDecision(false, "not_enough_motion", pose);
-    if (min_keyframe_time_ > 0.0 && d.dt < min_keyframe_time_) {
-      d.reason = "min_time";
-      return d;
-    }
-    if (max_keyframe_time_ > 0.0 && d.dt >= max_keyframe_time_) {
-      d.save = true;
-      d.reason = "max_time";
-      return d;
-    }
-    if (d.distance >= min_keyframe_distance_) {
-      d.save = true;
-      d.reason = "distance";
-      return d;
-    }
-    if (std::abs(d.yaw_delta) >= min_keyframe_yaw_) {
-      d.save = true;
-      d.reason = "yaw";
-      return d;
-    }
-    return d;
-  }
-
-  KeyframeDecision makeDecision(bool save, const std::string &reason, const ExternalPose &pose)
-  {
-    KeyframeDecision d;
-    d.save = save;
-    d.reason = reason;
-    if (last_keyframe_pose_) {
-      const Eigen::Vector3d delta = pose.t - last_keyframe_pose_->t;
-      d.distance = delta.norm();
-      d.yaw_delta = wrapAngle(yawFromQuaternion(pose.q) - yawFromQuaternion(last_keyframe_pose_->q));
-      d.dt = std::max(0.0, pose.stamp - last_keyframe_pose_->stamp);
-    }
-    return d;
-  }
-
-  bool saveKeyframe(double stamp_sec, const ExternalPose &pose, const KeyframeDecision &decision)
+  bool saveFrame(double stamp_sec, const ExternalPose &pose)
   {
     fs::path pcd_path;
     std::string timestamp = formatTimestamp(stamp_sec);
@@ -551,28 +462,23 @@ private:
                    << pose.q.x() << " " << pose.q.y() << " " << pose.q.z() << " "
                    << pose.q.w() << "\n";
       }
-      if (keyframe_csv_.is_open()) {
-        keyframe_csv_ << saved_count_ << ","
-                      << timestamp << ","
-                      << pcd_path.filename().string() << ","
-                      << decision.reason << ","
-                      << feats_undistort_->size() << ","
-                      << feats_down_body_->size() << ","
-                      << pose.t.x() << ","
-                      << pose.t.y() << ","
-                      << pose.t.z() << ","
-                      << pose.q.x() << ","
-                      << pose.q.y() << ","
-                      << pose.q.z() << ","
-                      << pose.q.w() << ","
-                      << decision.distance << ","
-                      << decision.yaw_delta * 180.0 / M_PI << ","
-                      << decision.dt << "\n";
+      if (frames_csv_.is_open()) {
+        frames_csv_ << saved_count_ << ","
+                    << timestamp << ","
+                    << pcd_path.filename().string() << ","
+                    << feats_undistort_->size() << ","
+                    << feats_down_body_->size() << ","
+                    << pose.t.x() << ","
+                    << pose.t.y() << ","
+                    << pose.t.z() << ","
+                    << pose.q.x() << ","
+                    << pose.q.y() << ","
+                    << pose.q.z() << ","
+                    << pose.q.w() << "\n";
       }
       ++saved_count_;
       last_saved_pcd_ = pcd_path.string();
-      last_keyframe_pose_ = pose;
-      last_reason_ = "saved:" + decision.reason;
+      last_reason_ = "saved:frame";
       last_error_ = "none";
       if (saved_count_ % 20 == 0) {
         writeMetadata("recording");
@@ -622,9 +528,9 @@ private:
     fs::create_directories(*session_pcd_dir_);
 
     pose_file_.open((*session_pcd_dir_ / "lidar_poses.txt").string(), std::ios::out);
-    keyframe_csv_.open((session_dir_ / "keyframes.csv").string(), std::ios::out);
-    keyframe_csv_ << "seq,timestamp,pcd,trigger,undistorted_points,downsampled_points,"
-                     "x,y,z,qx,qy,qz,qw,delta_distance,delta_yaw_deg,delta_time\n";
+    frames_csv_.open((session_dir_ / "frames.csv").string(), std::ios::out);
+    frames_csv_ << "seq,timestamp,pcd,undistorted_points,downsampled_points,"
+                   "x,y,z,qx,qy,qz,qw\n";
 
     active_ = true;
     writeMetadata("recording");
@@ -656,8 +562,8 @@ private:
     if (pose_file_.is_open()) {
       pose_file_.close();
     }
-    if (keyframe_csv_.is_open()) {
-      keyframe_csv_.close();
+    if (frames_csv_.is_open()) {
+      frames_csv_.close();
     }
   }
 
@@ -667,7 +573,7 @@ private:
       return;
     }
     std::ofstream out((session_dir_ / "metadata.yaml").string(), std::ios::out);
-    out << "format: fast_livo2_embedded_lio_keyframe_session\n";
+    out << "format: fast_livo2_embedded_lio_frame_session\n";
     out << "state: " << state << "\n";
     out << "session_dir: " << session_dir_.string() << "\n";
     out << "pointcloud_topic: " << pointcloud_topic_ << "\n";
@@ -676,7 +582,7 @@ private:
     out << "pose_frame: " << pose_frame_ << "\n";
     out << "pcd_frame: lidar_frame_downsampled_feats_down_body\n";
     out << "pose_semantics: map_to_pose_frame_at_lidar_frame_end\n";
-    out << "saved_keyframes: " << saved_count_ << "\n";
+    out << "saved_frames: " << saved_count_ << "\n";
     out << "skipped_clouds: " << skipped_count_ << "\n";
     out << "rejected_clouds: " << rejected_count_ << "\n";
     out << "last_error: " << last_error_ << "\n";
@@ -708,20 +614,6 @@ private:
     std::lock_guard<std::mutex> lock(mutex_);
     res.success = true;
     res.message = statusTextLocked();
-    return true;
-  }
-
-  bool handleForceKeyframe(std_srvs::Trigger::Request &, std_srvs::Trigger::Response &res)
-  {
-    std::lock_guard<std::mutex> lock(mutex_);
-    if (!active_) {
-      res.success = false;
-      res.message = "not_recording";
-      return true;
-    }
-    force_next_keyframe_ = true;
-    res.success = true;
-    res.message = "next_valid_lio_frame_will_be_saved";
     return true;
   }
 
@@ -782,7 +674,6 @@ private:
   ros::ServiceServer start_srv_;
   ros::ServiceServer stop_srv_;
   ros::ServiceServer status_srv_;
-  ros::ServiceServer force_keyframe_srv_;
   ros::Timer status_timer_;
 
   tf2_ros::Buffer tf_buffer_;
@@ -812,7 +703,6 @@ private:
   bool gravity_align_finished_ = false;
   bool lidar_map_inited_ = false;
   bool first_lidar_seen_ = false;
-  bool force_next_keyframe_ = false;
   bool allow_latest_tf_fallback_ = false;
 
   std::string pointcloud_topic_;
@@ -824,14 +714,13 @@ private:
   fs::path session_dir_;
   std::optional<fs::path> session_pcd_dir_;
   std::ofstream pose_file_;
-  std::ofstream keyframe_csv_;
-  std::optional<ExternalPose> last_keyframe_pose_;
+  std::ofstream frames_csv_;
 
   int lidar_type_ = VELO16;
   int scan_line_ = 16;
   int point_filter_num_ = 1;
   int imu_init_frame_num_ = 20;
-  int min_keyframe_points_ = 300;
+  int min_frame_points_ = 300;
   int max_imu_buffer_size_ = 5000;
 
   double blind_ = 0.5;
@@ -846,10 +735,6 @@ private:
   double imu_overlap_time_ = 0.02;
   double imu_prune_keep_time_ = 1.0;
   double imu_end_tolerance_ = 0.02;
-  double min_keyframe_distance_ = 0.5;
-  double min_keyframe_yaw_ = 8.0 * M_PI / 180.0;
-  double min_keyframe_time_ = 0.5;
-  double max_keyframe_time_ = 5.0;
   double last_lio_update_time_ = -1.0;
   double first_lidar_time_ = 0.0;
 

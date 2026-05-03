@@ -49,7 +49,10 @@ test_results/
 *.laz
 *.bt
 *.pcap
+map_update_bags/
 map_update_sessions/
+/src/orchard_map_update/map_update_bags/
+/src/orchard_map_update/update_datasets/
 
 # FAST-LIVO2 recorder runtime debug/output
 /src/orchard_map_update/Log/
