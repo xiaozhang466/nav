@@ -38,7 +38,9 @@
 
   <arg name="map_file" default="$(find um980_driver)/maps/nav_map.yaml" />
   <arg name="base_global_planner" default="um980_driver/RouteGlobalPlanner" />
-  <arg name="base_local_planner" default="dwa_local_planner/DWAPlannerROS" />
+  <arg name="base_local_planner" default="um980_driver/RegulatedPurePursuitPlanner" />
+  <arg name="load_dwa_config" default="false" />
+  <arg name="load_rpp_config" default="true" />
   <arg name="use_cmd_vel_smoother" default="true" />
 
   <arg name="ranger_port_name" default="can0" />
@@ -88,6 +90,8 @@
     <arg name="map_file" value="$(arg map_file)" />
     <arg name="base_global_planner" value="$(arg base_global_planner)" />
     <arg name="base_local_planner" value="$(arg base_local_planner)" />
+    <arg name="load_dwa_config" value="$(arg load_dwa_config)" />
+    <arg name="load_rpp_config" value="$(arg load_rpp_config)" />
     <arg name="use_cmd_vel_smoother" value="$(arg use_cmd_vel_smoother)" />
     <arg name="launch_waypoint_patrol" value="true" />
     <arg name="auto_start_waypoint_patrol" value="$(arg auto_start_waypoint_patrol)" />

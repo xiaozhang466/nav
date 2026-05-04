@@ -186,7 +186,7 @@ class NavHealthMonitor:
             "~global_plan_topic", "/move_base/NavfnROS/plan"
         )
         self.local_plan_topic = rospy.get_param(
-            "~local_plan_topic", "/move_base/DWAPlannerROS/local_plan"
+            "~local_plan_topic", "/move_base/RegulatedPurePursuitPlanner/local_plan"
         )
         self.rpp_status_topic = rospy.get_param(
             "~rpp_status_topic", "/move_base/RegulatedPurePursuitPlanner/status"
@@ -340,9 +340,10 @@ class NavHealthMonitor:
         rospy.Subscriber(self.global_plan_topic, Path, self.global_plan_callback, queue_size=5)
         rospy.Subscriber(self.local_plan_topic, Path, self.local_plan_callback, queue_size=5)
         rospy.Subscriber(self.rpp_status_topic, String, self.rpp_status_callback, queue_size=20)
-        rospy.Subscriber(
-            self.rpp_local_plan_topic, Path, self.local_plan_callback, queue_size=5
-        )
+        if self.rpp_local_plan_topic != self.local_plan_topic:
+            rospy.Subscriber(
+                self.rpp_local_plan_topic, Path, self.local_plan_callback, queue_size=5
+            )
 
     def setup_logs(self) -> None:
         if not self.log_enabled:
