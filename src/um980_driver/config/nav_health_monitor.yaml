@@ -12,6 +12,7 @@ cmd_vel_topic: /cmd_vel
 
 global_status_topic: /global_localization/status
 lidar_status_topic: /lidar_localization/status
+alignment_status_topic: /map_rtk_alignment/status
 relocalizer_status_topic: /rtk_lidar_relocalizer/status
 waypoint_status_topic: /waypoint_patrol/status
 rtk_fix_type_topic: /rtk/fix_type

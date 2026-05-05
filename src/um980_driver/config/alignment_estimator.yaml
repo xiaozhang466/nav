@@ -10,6 +10,7 @@ publish_cached_immediately: false
 rtk_odom_topic: /odometry/rtk_map
 lidar_odom_topic: /odometry/lidar_map
 rtk_fix_type_topic: /rtk/fix_type
+rtk_position_type_topic: /rtk/position_type
 lidar_status_topic: /lidar_localization/status
 
 # ── Frames ──
@@ -22,21 +23,20 @@ verify_min_travel: 3.0       # need this much travel (m) to verify
 verify_max_residual: 0.3     # cache is valid if RMSE < this (m)
 
 # ── Full estimation ──
+initial_estimate_travel_m: 20.0  # first online estimate travel distance (m)
+reestimate_travel_m: 30.0        # subsequent online re-estimate travel distance (m)
 min_samples: 30              # minimum matched pairs for a new estimate
-min_travel_m: 20.0           # minimum travel distance (m)
 sample_spacing_m: 0.5        # minimum distance between kept samples
 max_time_delta: 0.15         # max time gap (s) for RTK/LiDAR matching
-max_accept_rmse: 0.15        # reject estimates with RMSE > this (m)
-
-# ── Auto-update safety ──
-max_auto_update_delta: 1.0   # warn (don't auto-update) if new alignment
-                             # differs by more than this (m) from current
+max_accept_rmse: 0.20        # reject estimates with RMSE > this (m)
+max_accept_max_residual: 0.50  # reject estimates with any residual > this (m)
+save_alignment_on_accept: true
+accepted_position_types: [NARROW_INT, L1_INT]
+status_timeout: 2.0
 
 # ── Continuous monitoring ──
-update_interval: 300         # re-estimate every N seconds
 sliding_window_size: 200     # max samples kept in sliding window
+tf_publish_rate: 10.0        # dynamic map -> rtk_map TF publish rate (Hz)
 # ── Stabilization ──
 stabilization_delay: 15.0    # wait N seconds after LiDAR becomes OK
                              # before collecting samples (let FAST converge)
-max_bad_estimates: 10        # after N consecutive high-RMSE estimates,
-                             # clear window and start fresh

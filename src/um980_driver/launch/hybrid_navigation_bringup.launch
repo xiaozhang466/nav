@@ -64,9 +64,7 @@
   <!-- ================================================================== -->
   <group if="$(arg launch_localization)">
 
-    <!-- map ↔ rtk_map alignment (auto-calibrating) -->
-    <!-- Does NOT publish TF until alignment is verified, so RTK is   -->
-    <!-- blocked in global_localization_manager until then (LiDAR only). -->
+    <!-- map ↔ rtk_map alignment (auto-calibrating, dynamic TF after verification). -->
     <node pkg="um980_driver"
           type="alignment_estimator.py"
           name="map_rtk_alignment"

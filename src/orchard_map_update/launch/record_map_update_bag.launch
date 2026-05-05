@@ -26,6 +26,7 @@
   <arg name="cmd_vel_nav_topic" default="/cmd_vel_nav" />
   <arg name="nav_health_status_topic" default="/nav_health/status" />
   <arg name="nav_health_events_topic" default="/nav_health/events" />
+  <arg name="alignment_status_topic" default="/map_rtk_alignment/status" />
   <arg name="relocalizer_status_topic" default="/rtk_lidar_relocalizer/status" />
   <arg name="move_base_status_topic" default="/move_base/status" />
   <arg name="rpp_status_topic" default="/move_base/RegulatedPurePursuitPlanner/status" />
@@ -60,6 +61,7 @@
               $(arg cmd_vel_nav_topic)
               $(arg nav_health_status_topic)
               $(arg nav_health_events_topic)
+              $(arg alignment_status_topic)
               $(arg relocalizer_status_topic)
               $(arg move_base_status_topic)
               $(arg rpp_status_topic)

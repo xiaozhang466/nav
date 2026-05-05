@@ -169,6 +169,9 @@ class NavHealthMonitor:
         self.lidar_status_topic = rospy.get_param(
             "~lidar_status_topic", "/lidar_localization/status"
         )
+        self.alignment_status_topic = rospy.get_param(
+            "~alignment_status_topic", "/map_rtk_alignment/status"
+        )
         self.relocalizer_status_topic = rospy.get_param(
             "~relocalizer_status_topic", "/rtk_lidar_relocalizer/status"
         )
@@ -261,6 +264,7 @@ class NavHealthMonitor:
 
         self.global_status: Optional[StatusSample] = None
         self.lidar_status: Optional[StatusSample] = None
+        self.alignment_status: Optional[StatusSample] = None
         self.relocalizer_status: Optional[StatusSample] = None
         self.waypoint_status: Optional[StatusSample] = None
         self.rpp_status: Optional[StatusSample] = None
@@ -325,6 +329,9 @@ class NavHealthMonitor:
         rospy.Subscriber(self.global_status_topic, String, self.global_status_callback, queue_size=20)
         rospy.Subscriber(self.lidar_status_topic, String, self.lidar_status_callback, queue_size=20)
         rospy.Subscriber(
+            self.alignment_status_topic, String, self.alignment_status_callback, queue_size=20
+        )
+        rospy.Subscriber(
             self.relocalizer_status_topic, String, self.relocalizer_status_callback, queue_size=20
         )
         rospy.Subscriber(
@@ -363,6 +370,14 @@ class NavHealthMonitor:
             "rtk_position_type",
             "rtk_lidar_xy",
             "rtk_lidar_yaw_deg",
+            "alignment_state",
+            "alignment_reason",
+            "alignment_window_travel",
+            "alignment_samples",
+            "alignment_rmse",
+            "alignment_max_residual",
+            "alignment_saved",
+            "alignment_status_age",
             "global_pose_age",
             "rtk_pose_age",
             "lidar_pose_age",
@@ -478,6 +493,17 @@ class NavHealthMonitor:
     def lidar_status_callback(self, msg: String) -> None:
         with self.lock:
             self.lidar_status = self.make_status_sample(msg)
+
+    def alignment_status_callback(self, msg: String) -> None:
+        sample = self.make_status_sample(msg)
+        with self.lock:
+            self.alignment_status = sample
+
+        reason = sample.fields.get("reason", "")
+        if reason.startswith("accepted"):
+            self.add_event("INFO", "alignment_saved", sample.text)
+        elif reason.startswith("rejected") or reason == "cache_rejected":
+            self.add_event("WARN", "alignment_rejected", sample.text)
 
     def relocalizer_status_callback(self, msg: String) -> None:
         sample = self.make_status_sample(msg)
@@ -841,8 +867,20 @@ class NavHealthMonitor:
             global_plan = self.global_plan
             local_plan = self.local_plan
             rpp = self.rpp_status
+            alignment = self.alignment_status
 
         rtk_lidar_xy, rtk_lidar_yaw = self.compute_rtk_lidar_delta()
+        alignment_state = alignment.fields.get("state", "unknown") if alignment else "unknown"
+        alignment_reason = alignment.fields.get("reason", "unknown") if alignment else "unknown"
+        alignment_window_travel = (
+            parse_float(alignment.fields.get("window_travel")) if alignment else None
+        )
+        alignment_samples = alignment.fields.get("samples", "unknown") if alignment else "unknown"
+        alignment_rmse = parse_float(alignment.fields.get("rmse")) if alignment else None
+        alignment_max_residual = (
+            parse_float(alignment.fields.get("max_residual")) if alignment else None
+        )
+        alignment_saved = alignment.fields.get("saved", "unknown") if alignment else "unknown"
         route_error = parse_float(waypoint.fields.get("route_error")) if waypoint else None
         checkpoint_distance = (
             parse_float(waypoint.fields.get("checkpoint_distance")) if waypoint else None
@@ -873,7 +911,7 @@ class NavHealthMonitor:
 
         summary = (
             "source=%s rtk=%s/%s delta_xy=%s delta_yaw_deg=%s wp=%s "
-            "route_error=%s controller=%s rpp_reason=%s"
+            "route_error=%s controller=%s rpp_reason=%s alignment=%s/%s"
             % (
                 source,
                 fix,
@@ -887,6 +925,8 @@ class NavHealthMonitor:
                 self.format_optional(route_error, "%.2f"),
                 local_controller,
                 rpp_reason,
+                alignment_state,
+                alignment_reason,
             )
         )
 
@@ -902,6 +942,14 @@ class NavHealthMonitor:
                 math.degrees(rtk_lidar_yaw) if rtk_lidar_yaw is not None else None,
                 "%.2f",
             ),
+            "alignment_state": alignment_state,
+            "alignment_reason": alignment_reason,
+            "alignment_window_travel": self.format_optional(alignment_window_travel, "%.3f"),
+            "alignment_samples": alignment_samples,
+            "alignment_rmse": self.format_optional(alignment_rmse, "%.4f"),
+            "alignment_max_residual": self.format_optional(alignment_max_residual, "%.4f"),
+            "alignment_saved": alignment_saved,
+            "alignment_status_age": self.format_optional(self.age(now, alignment), "%.3f"),
             "global_pose_age": self.format_optional(self.age(now, global_pose), "%.3f"),
             "rtk_pose_age": self.format_optional(self.age(now, rtk_pose), "%.3f"),
             "lidar_pose_age": self.format_optional(self.age(now, lidar_pose), "%.3f"),
@@ -969,7 +1017,8 @@ class NavHealthMonitor:
             "rtk_lidar_yaw_deg={rtk_lidar_yaw_deg} cmd_v={cmd_v} cmd_w={cmd_w} "
             "odom_v={odom_v} odom_w={odom_w} waypoint={waypoint_index} "
             "route_error={route_error} move_base={move_base_status} "
-            "controller={local_controller} rpp_reason={rpp_reason} last_event={last_event}"
+            "controller={local_controller} rpp_reason={rpp_reason} "
+            "alignment={alignment_state}/{alignment_reason} last_event={last_event}"
         ).format(**snapshot)
 
     def make_markers(self, snapshot: Dict[str, object]) -> MarkerArray:
@@ -1002,6 +1051,8 @@ class NavHealthMonitor:
             "source: {active_source} | move_base: {move_base_status}\n"
             "rtk: {rtk_fix_type}/{rtk_position_type}\n"
             "rtk-lidar: {rtk_lidar_xy} m, {rtk_lidar_yaw_deg} deg\n"
+            "alignment: {alignment_state}/{alignment_reason} "
+            "rmse={alignment_rmse} max={alignment_max_residual}\n"
             "cmd: v={cmd_v}, w={cmd_w} | odom: v={odom_v}, w={odom_w}\n"
             "waypoint: {waypoint_index} | route_error: {route_error} m\n"
             "event: {last_event}"

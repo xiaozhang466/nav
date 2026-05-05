@@ -19,10 +19,10 @@ status_timeout: 2.0
 local_interp_timeout: 0.2
 switch_cooldown: 2.0
 switch_hysteresis: 0.15
-preferred_source: rtk
-preferred_min_quality: 0.95
-fallback_source: lidar
-tie_breaker: rtk
+preferred_source: lidar
+preferred_min_quality: 0.5
+fallback_source: rtk
+tie_breaker: lidar
 status_stamp_tolerance: 0.02
 max_switch_xy_delta: 0.8
 max_switch_yaw_delta_deg: 15.0
