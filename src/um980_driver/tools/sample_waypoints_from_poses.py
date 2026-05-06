@@ -18,7 +18,7 @@ import math
 import os
 import sys
 from dataclasses import dataclass
-from typing import Iterable, List, Optional, Sequence, Tuple
+from typing import List, Optional, Sequence, Tuple
 
 
 @dataclass
@@ -39,6 +39,14 @@ class Waypoint:
     yaw: float
     distance: float
     source_index: int
+
+
+@dataclass
+class CornerSampling:
+    interval: float
+    yaw_threshold_deg: float
+    expand_distance: float
+    zones: List[Tuple[float, float]]
 
 
 def normalize_angle(angle: float) -> float:
@@ -298,13 +306,128 @@ def build_sample_distances(total_length: float, interval: float, include_end: bo
     return values
 
 
+def yaw_between_distances(
+    samples: Sequence[PoseSample],
+    distances: Sequence[float],
+    start_distance: float,
+    end_distance: float,
+) -> Optional[float]:
+    if end_distance - start_distance < 1e-6:
+        return None
+
+    start_pose, _ = interpolate_pose_at(samples, distances, start_distance)
+    end_pose, _ = interpolate_pose_at(samples, distances, end_distance)
+    dx = end_pose.x - start_pose.x
+    dy = end_pose.y - start_pose.y
+    if math.hypot(dx, dy) < 1e-6:
+        return None
+    return math.atan2(dy, dx)
+
+
+def merge_distance_zones(zones: Sequence[Tuple[float, float]]) -> List[Tuple[float, float]]:
+    merged: List[Tuple[float, float]] = []
+    for start, end in sorted(zones):
+        if end <= start:
+            continue
+        if not merged or start > merged[-1][1] + 1e-6:
+            merged.append((start, end))
+        else:
+            previous_start, previous_end = merged[-1]
+            merged[-1] = (previous_start, max(previous_end, end))
+    return merged
+
+
+def detect_corner_zones(
+    samples: Sequence[PoseSample],
+    distances: Sequence[float],
+    yaw_threshold_deg: float,
+    expand_distance: float,
+    scan_step: float,
+) -> List[Tuple[float, float]]:
+    if yaw_threshold_deg <= 0.0:
+        raise ValueError("corner yaw threshold must be > 0")
+    if expand_distance <= 0.0:
+        raise ValueError("corner expand distance must be > 0")
+    if scan_step <= 0.0:
+        raise ValueError("corner scan step must be > 0")
+
+    total_length = distances[-1]
+    yaw_threshold = math.radians(yaw_threshold_deg)
+    probe = min(expand_distance, max(0.1, total_length * 0.5))
+    zones: List[Tuple[float, float]] = []
+
+    current = 0.0
+    while current <= total_length + 1e-9:
+        before_yaw = yaw_between_distances(
+            samples,
+            distances,
+            max(0.0, current - probe),
+            current,
+        )
+        after_yaw = yaw_between_distances(
+            samples,
+            distances,
+            current,
+            min(total_length, current + probe),
+        )
+        if before_yaw is not None and after_yaw is not None:
+            turn_angle = abs(normalize_angle(after_yaw - before_yaw))
+            if turn_angle >= yaw_threshold:
+                zones.append(
+                    (
+                        max(0.0, current - expand_distance),
+                        min(total_length, current + expand_distance),
+                    )
+                )
+        current += scan_step
+
+    return merge_distance_zones(zones)
+
+
+def unique_sorted_distances(values: Sequence[float]) -> List[float]:
+    result: List[float] = []
+    for value in sorted(values):
+        if not result or abs(value - result[-1]) > 1e-6:
+            result.append(value)
+    return result
+
+
+def build_corner_aware_sample_distances(
+    total_length: float,
+    interval: float,
+    include_end: bool,
+    corner_zones: Sequence[Tuple[float, float]],
+    corner_interval: float,
+) -> List[float]:
+    if not corner_zones:
+        return build_sample_distances(total_length, interval, include_end)
+    if corner_interval <= 0.0:
+        raise ValueError("corner interval must be > 0")
+    if corner_interval >= interval:
+        raise ValueError("corner interval must be smaller than base interval")
+
+    values = build_sample_distances(total_length, interval, include_end)
+    for start, end in corner_zones:
+        current = max(0.0, start)
+        end = min(total_length, end)
+        while current <= end + 1e-9:
+            values.append(current)
+            current += corner_interval
+        values.append(end)
+
+    return unique_sorted_distances(values)
+
+
 def generate_waypoints(
     samples: Sequence[PoseSample],
     interval: float,
     include_end: bool,
     yaw_mode: str,
     heading_lookahead: float,
-) -> Tuple[List[Waypoint], float]:
+    corner_interval: float,
+    corner_yaw_threshold_deg: float,
+    corner_expand_distance: float,
+) -> Tuple[List[Waypoint], float, CornerSampling]:
     if len(samples) < 2:
         raise ValueError("need at least two pose samples")
 
@@ -313,9 +436,29 @@ def generate_waypoints(
     if total_length <= 0.0:
         raise ValueError("trajectory length is zero")
 
+    corner_zones: List[Tuple[float, float]] = []
+    if corner_interval > 0.0:
+        scan_step = max(0.25, min(corner_interval, interval, corner_expand_distance * 0.25))
+        corner_zones = detect_corner_zones(
+            samples,
+            distances,
+            yaw_threshold_deg=corner_yaw_threshold_deg,
+            expand_distance=corner_expand_distance,
+            scan_step=scan_step,
+        )
+        sample_distances = build_corner_aware_sample_distances(
+            total_length,
+            interval,
+            include_end,
+            corner_zones,
+            corner_interval,
+        )
+    else:
+        sample_distances = build_sample_distances(total_length, interval, include_end)
+
     waypoints = []
     previous_yaw = None
-    for waypoint_id, distance in enumerate(build_sample_distances(total_length, interval, include_end)):
+    for waypoint_id, distance in enumerate(sample_distances):
         pose, source_index = interpolate_pose_at(samples, distances, distance)
         if yaw_mode == "pose" and pose.yaw is not None:
             yaw = pose.yaw
@@ -336,7 +479,23 @@ def generate_waypoints(
             )
         )
 
-    return waypoints, total_length
+    return (
+        waypoints,
+        total_length,
+        CornerSampling(
+            interval=corner_interval,
+            yaw_threshold_deg=corner_yaw_threshold_deg,
+            expand_distance=corner_expand_distance,
+            zones=corner_zones,
+        ),
+    )
+
+
+def format_distance_zones(zones: Sequence[Tuple[float, float]]) -> str:
+    if not zones:
+        return "[]"
+    items = [f"[{start:.3f}, {end:.3f}]" for start, end in zones]
+    return "[" + ", ".join(items) + "]"
 
 
 def yaml_quote(value: str) -> str:
@@ -354,6 +513,7 @@ def write_waypoints_yaml(
     path_length: float,
     loop: bool,
     yaw_mode: str,
+    corner_sampling: CornerSampling,
 ) -> None:
     os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
     generated_at = _datetime.datetime.now().isoformat(timespec="seconds")
@@ -365,6 +525,13 @@ def write_waypoints_yaml(
         handle.write(f"raw_pose_count: {raw_count}\n")
         handle.write(f"filtered_pose_count: {filtered_count}\n")
         handle.write(f"interval: {interval:.6f}\n")
+        if corner_sampling.interval > 0.0:
+            handle.write(f"corner_interval: {corner_sampling.interval:.6f}\n")
+            handle.write(
+                f"corner_yaw_threshold_deg: {corner_sampling.yaw_threshold_deg:.3f}\n"
+            )
+            handle.write(f"corner_expand_distance: {corner_sampling.expand_distance:.6f}\n")
+            handle.write(f"corner_zone_count: {len(corner_sampling.zones)}\n")
         handle.write(f"path_length: {path_length:.6f}\n")
         handle.write(f"yaw_mode: {yaml_quote(yaw_mode)}\n")
         handle.write("waypoints:\n")
@@ -427,6 +594,24 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
         help="Distance window used to estimate tangent heading.",
     )
     parser.add_argument(
+        "--corner-interval",
+        type=float,
+        default=0.5,
+        help="Waypoint interval inside detected sharp-turn zones in meters. Set <=0 to disable.",
+    )
+    parser.add_argument(
+        "--corner-yaw-threshold-deg",
+        type=float,
+        default=35.0,
+        help="Minimum heading change used to detect a sharp turn.",
+    )
+    parser.add_argument(
+        "--corner-expand-distance",
+        type=float,
+        default=4.0,
+        help="Distance before and after each detected turn to sample with --corner-interval.",
+    )
+    parser.add_argument(
         "--no-include-end",
         action="store_true",
         help="Do not force-add the final trajectory point when it is far from the last interval sample.",
@@ -440,12 +625,15 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     try:
         samples = read_pose_samples(args.input, args.quat_order)
         filtered = filter_samples(samples, args.min_input_step)
-        waypoints, path_length = generate_waypoints(
+        waypoints, path_length, corner_sampling = generate_waypoints(
             filtered,
             interval=args.interval,
             include_end=not args.no_include_end,
             yaw_mode=args.yaw_mode,
             heading_lookahead=args.heading_lookahead,
+            corner_interval=args.corner_interval,
+            corner_yaw_threshold_deg=args.corner_yaw_threshold_deg,
+            corner_expand_distance=args.corner_expand_distance,
         )
         write_waypoints_yaml(
             args.output,
@@ -458,6 +646,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             path_length=path_length,
             loop=args.loop,
             yaw_mode=args.yaw_mode,
+            corner_sampling=corner_sampling,
         )
     except Exception as exc:  # pylint: disable=broad-except
         print(f"error: {exc}", file=sys.stderr)
@@ -465,6 +654,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     print(f"read poses: raw={len(samples)}, filtered={len(filtered)}")
     print(f"path length: {path_length:.3f} m")
+    if corner_sampling.interval > 0.0:
+        print(f"corner interval: {corner_sampling.interval:.3f} m")
+        print(f"corner zones: {format_distance_zones(corner_sampling.zones)}")
     print(f"generated waypoints: {len(waypoints)}")
     print(f"output: {os.path.abspath(args.output)}")
     if waypoints:
