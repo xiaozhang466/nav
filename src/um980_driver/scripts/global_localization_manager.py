@@ -134,6 +134,13 @@ class GlobalLocalizationManager:
         self.preferred_source = str(rospy.get_param("~preferred_source", "")).strip().lower()
         self.preferred_min_quality = float(rospy.get_param("~preferred_min_quality", 0.95))
         self.fallback_source = str(rospy.get_param("~fallback_source", "")).strip().lower()
+        if self.fallback_source == "auto":
+            if self.preferred_source == "rtk":
+                self.fallback_source = "lidar"
+            elif self.preferred_source == "lidar":
+                self.fallback_source = "rtk"
+            else:
+                self.fallback_source = ""
         self.status_stamp_tolerance = float(
             rospy.get_param("~status_stamp_tolerance", 0.02)
         )

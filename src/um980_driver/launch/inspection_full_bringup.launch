@@ -42,6 +42,10 @@
   <arg name="load_dwa_config" default="false" />
   <arg name="load_rpp_config" default="true" />
   <arg name="use_cmd_vel_smoother" default="true" />
+  <arg name="localization_preferred_source" default="lidar" />
+  <arg name="localization_fallback_source" default="auto" />
+  <arg name="localization_tie_breaker" default="$(arg localization_preferred_source)" />
+  <arg name="localization_preferred_min_quality" default="0.5" />
 
   <arg name="ranger_port_name" default="can0" />
   <arg name="ranger_robot_model" default="ranger_mini_v2" />
@@ -93,6 +97,10 @@
     <arg name="load_dwa_config" value="$(arg load_dwa_config)" />
     <arg name="load_rpp_config" value="$(arg load_rpp_config)" />
     <arg name="use_cmd_vel_smoother" value="$(arg use_cmd_vel_smoother)" />
+    <arg name="localization_preferred_source" value="$(arg localization_preferred_source)" />
+    <arg name="localization_fallback_source" value="$(arg localization_fallback_source)" />
+    <arg name="localization_tie_breaker" value="$(arg localization_tie_breaker)" />
+    <arg name="localization_preferred_min_quality" value="$(arg localization_preferred_min_quality)" />
     <arg name="launch_waypoint_patrol" value="true" />
     <arg name="auto_start_waypoint_patrol" value="$(arg auto_start_waypoint_patrol)" />
     <arg name="loop_waypoint_patrol" value="$(arg loop_waypoint_patrol)" />

@@ -56,6 +56,10 @@
   <arg name="lidar_odom_topic" default="/odometry/lidar_map" />
   <arg name="global_nav_output_topic" default="/odometry/global_nav" />
   <arg name="publish_global_tf" default="true" />
+  <arg name="localization_preferred_source" default="lidar" />
+  <arg name="localization_fallback_source" default="auto" />
+  <arg name="localization_tie_breaker" default="$(arg localization_preferred_source)" />
+  <arg name="localization_preferred_min_quality" default="0.5" />
   <arg name="tf_diagnostics_rate" default="20.0" />
   <arg name="tf_diagnostics_log_dir" default="~/.ros/nav_health" />
 
@@ -106,6 +110,10 @@
       <arg name="odom_frame" value="$(arg odom_frame)" />
       <arg name="base_link_frame" value="$(arg base_link_frame)" />
       <arg name="publish_tf" value="$(arg publish_global_tf)" />
+      <arg name="preferred_source" value="$(arg localization_preferred_source)" />
+      <arg name="fallback_source" value="$(arg localization_fallback_source)" />
+      <arg name="tie_breaker" value="$(arg localization_tie_breaker)" />
+      <arg name="preferred_min_quality" value="$(arg localization_preferred_min_quality)" />
     </include>
 
   </group>

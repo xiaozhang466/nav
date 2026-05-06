@@ -9,6 +9,10 @@
   <arg name="odom_frame" default="odom" />
   <arg name="base_link_frame" default="base_link" />
   <arg name="publish_tf" default="true" />
+  <arg name="preferred_source" default="lidar" />
+  <arg name="fallback_source" default="auto" />
+  <arg name="tie_breaker" default="$(arg preferred_source)" />
+  <arg name="preferred_min_quality" default="0.5" />
 
   <node pkg="um980_driver"
         type="global_localization_manager.py"
@@ -24,5 +28,9 @@
     <param name="odom_frame" value="$(arg odom_frame)" />
     <param name="base_link_frame" value="$(arg base_link_frame)" />
     <param name="publish_tf" value="$(arg publish_tf)" />
+    <param name="preferred_source" value="$(arg preferred_source)" />
+    <param name="fallback_source" value="$(arg fallback_source)" />
+    <param name="tie_breaker" value="$(arg tie_breaker)" />
+    <param name="preferred_min_quality" value="$(arg preferred_min_quality)" />
   </node>
 </launch>

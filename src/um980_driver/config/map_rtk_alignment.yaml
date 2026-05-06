@@ -1,18 +1,18 @@
-# Static calibration from the LiDAR map frame into the fixed RTK datum frame.
+# Calibration from the LiDAR map frame into the fixed RTK datum frame.
 #
-# Auto-estimated on 20260504_173444
-# Samples: 40  Travel: 20.2m  RMSE: 0.0484m
+# Auto-estimated on 20260505_194209
+# Samples: 59  Travel: 30.3m  RMSE: 0.0201m
 #
 
 parent_frame: map
 child_frame: rtk_map
 
 translation:
-  x: -10.088479
-  y: 55.723883
+  x: -10.387767
+  y: 55.230226
   z: 0.0
 
 rotation:
   roll: 0.0
   pitch: 0.0
-  yaw: -2.095727
+  yaw: -2.111367
