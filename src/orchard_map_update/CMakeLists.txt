@@ -109,6 +109,11 @@ install(TARGETS fast_livo2_frontend fast_livo2_lio_recorder_node fast_livo2_bag_
   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
+catkin_install_python(PROGRAMS
+  scripts/stitch_fast_localization_map.py
+  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+)
+
 install(DIRECTORY
   config
   launch

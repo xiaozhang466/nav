@@ -496,12 +496,14 @@ private:
   {
     fs::path pcd_path;
     std::string timestamp = formatTimestamp(stamp_sec);
+    std::string pcd_file_name;
     {
       std::lock_guard<std::mutex> lock(mutex_);
       if (!active_ || !session_pcd_dir_) {
         return false;
       }
-      pcd_path = *session_pcd_dir_ / (timestamp + ".pcd");
+      pcd_file_name = std::to_string(saved_count_) + ".pcd";
+      pcd_path = *session_pcd_dir_ / pcd_file_name;
     }
 
     pcl::PCDWriter writer;
@@ -512,12 +514,19 @@ private:
 
     {
       std::lock_guard<std::mutex> lock(mutex_);
-      if (pose_file_.is_open()) {
-        pose_file_ << timestamp << " "
-                   << std::fixed << std::setprecision(9)
-                   << pose.t.x() << " " << pose.t.y() << " " << pose.t.z() << " "
-                   << pose.q.x() << " " << pose.q.y() << " " << pose.q.z() << " "
-                   << pose.q.w() << "\n";
+      if (pose_json_file_.is_open()) {
+        pose_json_file_ << std::fixed << std::setprecision(9)
+                        << pose.t.x() << " " << pose.t.y() << " " << pose.t.z() << " "
+                        << pose.q.w() << " " << pose.q.x() << " " << pose.q.y() << " "
+                        << pose.q.z() << "\n";
+      }
+      if (debug_pose_file_.is_open()) {
+        debug_pose_file_ << pcd_file_name << " "
+                         << timestamp << " "
+                         << std::fixed << std::setprecision(9)
+                         << pose.t.x() << " " << pose.t.y() << " " << pose.t.z() << " "
+                         << pose.q.x() << " " << pose.q.y() << " " << pose.q.z() << " "
+                         << pose.q.w() << "\n";
       }
       if (frames_csv_.is_open()) {
         frames_csv_ << saved_count_ << ","
@@ -581,10 +590,12 @@ private:
                           std::to_string(suffix++));
     }
     session_dir_ = candidate;
-    session_pcd_dir_ = session_dir_ / "Log" / "pcd";
+    const fs::path session_map_dir = session_dir_ / "Log";
+    session_pcd_dir_ = session_map_dir / "pcd";
     fs::create_directories(*session_pcd_dir_);
 
-    pose_file_.open((*session_pcd_dir_ / "lidar_poses.txt").string(), std::ios::out);
+    pose_json_file_.open((session_map_dir / "pose.json").string(), std::ios::out);
+    debug_pose_file_.open((session_map_dir / "lidar_poses_debug.txt").string(), std::ios::out);
     frames_csv_.open((session_dir_ / "frames.csv").string(), std::ios::out);
     frames_csv_ << "seq,timestamp,pcd,undistorted_points,downsampled_points,"
                    "x,y,z,qx,qy,qz,qw\n";
@@ -616,8 +627,11 @@ private:
 
   void closeSessionFiles()
   {
-    if (pose_file_.is_open()) {
-      pose_file_.close();
+    if (pose_json_file_.is_open()) {
+      pose_json_file_.close();
+    }
+    if (debug_pose_file_.is_open()) {
+      debug_pose_file_.close();
     }
     if (frames_csv_.is_open()) {
       frames_csv_.close();
@@ -633,6 +647,13 @@ private:
     out << "format: fast_livo2_embedded_lio_frame_session\n";
     out << "state: " << state << "\n";
     out << "session_dir: " << session_dir_.string() << "\n";
+    out << "map_dir: " << (session_dir_ / "Log").string() << "\n";
+    out << "pcd_dir: " << (session_dir_ / "Log" / "pcd").string() << "\n";
+    out << "pose_file: Log/pose.json\n";
+    out << "pose_format: x y z qw qx qy qz\n";
+    out << "debug_pose_file: Log/lidar_poses_debug.txt\n";
+    out << "debug_pose_format: pcd stamp x y z qx qy qz qw\n";
+    out << "pcd_name_format: sequential_unpadded\n";
     out << "pointcloud_topic: " << pointcloud_topic_ << "\n";
     out << "imu_topic: " << imu_topic_ << "\n";
     out << "map_frame: " << map_frame_ << "\n";
@@ -775,7 +796,8 @@ private:
   std::string pose_fallback_frame_;
   fs::path session_dir_;
   std::optional<fs::path> session_pcd_dir_;
-  std::ofstream pose_file_;
+  std::ofstream pose_json_file_;
+  std::ofstream debug_pose_file_;
   std::ofstream frames_csv_;
 
   int lidar_type_ = VELO16;

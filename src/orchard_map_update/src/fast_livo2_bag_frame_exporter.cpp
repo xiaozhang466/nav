@@ -317,9 +317,7 @@ RoutePath loadWaypointRoute(const std::string &path)
 
 std::string formatSeq(uint64_t seq)
 {
-  std::ostringstream ss;
-  ss << std::setw(6) << std::setfill('0') << seq;
-  return ss.str();
+  return std::to_string(seq);
 }
 
 std::string formatStamp(double stamp)
@@ -530,7 +528,11 @@ void writeMetadata(const fs::path &output_dir,
     out << "_with_extrinsic_fallback";
   }
   out << "\n";
-  out << "pose_file: lidar_poses.txt\n";
+  out << "pose_file: pose.json\n";
+  out << "pose_format: x y z qw qx qy qz\n";
+  out << "debug_pose_file: lidar_poses_debug.txt\n";
+  out << "debug_pose_format: pcd stamp x y z qx qy qz qw\n";
+  out << "pcd_name_format: sequential_unpadded\n";
   out << "output_dir: " << output_dir.string() << "\n";
   out << "output_cloud: fast_livo2_preprocess_imu_undistorted";
   if (opts.lio_state_update) {
@@ -881,7 +883,8 @@ int main(int argc, char **argv)
                 "lio_effective_features,lidar_map_inited,pose_status,x,y,z,qx,qy,qz,qw,"
                 "route_progress,route_lateral_error,route_segment,selection_status,"
                 "first_offset_ms,last_offset_ms\n";
-  std::ofstream pose_file((output_dir / "lidar_poses.txt").string(), std::ios::out);
+  std::ofstream pose_file((output_dir / "pose.json").string(), std::ios::out);
+  std::ofstream debug_pose_file((output_dir / "lidar_poses_debug.txt").string(), std::ios::out);
 
   uint64_t total_clouds = 0;
   uint64_t total_imus = 0;
@@ -1177,11 +1180,14 @@ int main(int argc, char **argv)
                  << last_offset_ms << "\n";
 
       if (pose_ok) {
-        pose_file << file_name << " "
-                  << formatStamp(frame_end) << " "
-                  << std::fixed << std::setprecision(9)
+        pose_file << std::fixed << std::setprecision(9)
                   << x << " " << y << " " << z << " "
-                  << qx << " " << qy << " " << qz << " " << qw << "\n";
+                  << qw << " " << qx << " " << qy << " " << qz << "\n";
+        debug_pose_file << file_name << " "
+                        << formatStamp(frame_end) << " "
+                        << std::fixed << std::setprecision(9)
+                        << x << " " << y << " " << z << " "
+                        << qx << " " << qy << " " << qz << " " << qw << "\n";
       }
 
       ++saved_frames;
@@ -1206,6 +1212,7 @@ int main(int argc, char **argv)
 
   frames_csv.close();
   pose_file.close();
+  debug_pose_file.close();
   writeMetadata(output_dir, opts, total_clouds, total_imus, dynamic_tf_count,
                 static_tf_count, saved_frames, skipped_frames, imu_wait_frames,
                 pose_missing_frames, pose_fallback_frames,
