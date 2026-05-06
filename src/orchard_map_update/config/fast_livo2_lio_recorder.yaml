@@ -13,7 +13,9 @@ session_prefix: fast_livo2_lio
 auto_start: false
 
 map_frame: map
-pose_frame: lslidar
+pose_frame: laser_link
+pose_fallback_frame: base_link
+pose_fallback_from_extrinsic: true
 tf_timeout: 0.05
 allow_latest_tf_fallback: false
 

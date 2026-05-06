@@ -3,7 +3,9 @@
   <arg name="pointcloud_topic" default="/lslidar_point_cloud" />
   <arg name="imu_topic" default="/IMU_data" />
   <arg name="map_frame" default="map" />
-  <arg name="pose_frame" default="lslidar" />
+  <arg name="pose_frame" default="laser_link" />
+  <arg name="pose_fallback_frame" default="base_link" />
+  <arg name="pose_fallback_from_extrinsic" default="true" />
   <arg name="auto_start" default="false" />
   <arg name="session_root" default="~/.ros/map_update_sessions" />
 
@@ -16,6 +18,8 @@
     <param name="imu_topic" value="$(arg imu_topic)" />
     <param name="map_frame" value="$(arg map_frame)" />
     <param name="pose_frame" value="$(arg pose_frame)" />
+    <param name="pose_fallback_frame" value="$(arg pose_fallback_frame)" />
+    <param name="pose_fallback_from_extrinsic" value="$(arg pose_fallback_from_extrinsic)" />
     <param name="auto_start" value="$(arg auto_start)" />
     <param name="session_root" value="$(arg session_root)" />
   </node>

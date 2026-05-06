@@ -4,7 +4,9 @@
   <arg name="pointcloud_topic" default="/lslidar_point_cloud" />
   <arg name="imu_topic" default="/IMU_data" />
   <arg name="map_frame" default="map" />
-  <arg name="pose_frame" default="lslidar" />
+  <arg name="pose_frame" default="laser_link" />
+  <arg name="pose_fallback_frame" default="base_link" />
+  <arg name="pose_fallback_from_extrinsic" default="true" />
   <arg name="require_pose" default="true" />
   <arg name="lidar_type" default="2" />
   <arg name="scan_line" default="16" />
@@ -22,6 +24,13 @@
   <arg name="downsample" default="true" />
   <arg name="filter_size_surf" default="0.1" />
   <arg name="min_points" default="1" />
+  <arg name="selection_mode" default="outbound_once" />
+  <arg name="waypoints_file" default="$(find um980_driver)/waypoints/inspection_waypoints.yaml" />
+  <arg name="outbound_reverse_threshold_m" default="2.0" />
+  <arg name="outbound_min_travel_before_reverse_m" default="5.0" />
+  <arg name="outbound_require_near_route_end" default="false" />
+  <arg name="outbound_end_margin_m" default="5.0" />
+  <arg name="stop_after_outbound" default="true" />
   <arg name="max_frames" default="0" />
 
   <node pkg="orchard_map_update"
@@ -35,6 +44,8 @@
               --imu_topic $(arg imu_topic)
               --map_frame $(arg map_frame)
               --pose_frame $(arg pose_frame)
+              --pose_fallback_frame $(arg pose_fallback_frame)
+              --pose_fallback_from_extrinsic $(arg pose_fallback_from_extrinsic)
               --require_pose $(arg require_pose)
               --lidar_type $(arg lidar_type)
               --scan_line $(arg scan_line)
@@ -52,5 +63,12 @@
               --downsample $(arg downsample)
               --filter_size_surf $(arg filter_size_surf)
               --min_points $(arg min_points)
+              --selection_mode $(arg selection_mode)
+              --waypoints_file $(arg waypoints_file)
+              --outbound_reverse_threshold_m $(arg outbound_reverse_threshold_m)
+              --outbound_min_travel_before_reverse_m $(arg outbound_min_travel_before_reverse_m)
+              --outbound_require_near_route_end $(arg outbound_require_near_route_end)
+              --outbound_end_margin_m $(arg outbound_end_margin_m)
+              --stop_after_outbound $(arg stop_after_outbound)
               --max_frames $(arg max_frames)" />
 </launch>

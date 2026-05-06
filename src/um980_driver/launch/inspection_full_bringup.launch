@@ -53,6 +53,14 @@
   <arg name="ranger_base_frame" default="base_link" />
   <arg name="ranger_odom_topic_name" default="odom" />
   <arg name="ranger_publish_odom_tf" default="false" />
+  <arg name="lidar_frame" default="laser_link" />
+  <arg name="publish_lidar_static_tf" default="true" />
+  <arg name="lidar_offset_x" default="0.0" />
+  <arg name="lidar_offset_y" default="0.0" />
+  <arg name="lidar_offset_z" default="0.30" />
+  <arg name="lidar_yaw" default="0.0" />
+  <arg name="lidar_pitch" default="0.0" />
+  <arg name="lidar_roll" default="0.0" />
 
   <arg name="relocalizer_yaw_source" default="rtk" />
   <arg name="relocalizer_auto_enabled" default="true" />
@@ -71,6 +79,14 @@
   <include if="$(arg launch_lidar)" file="$(find lslidar_c16_decoder)/launch/lslidar_c16.launch">
     <arg name="rviz" value="$(arg lidar_rviz)" />
   </include>
+
+  <node if="$(arg publish_lidar_static_tf)"
+        pkg="tf2_ros"
+        type="static_transform_publisher"
+        name="base_link_to_laser_link"
+        args="$(arg lidar_offset_x) $(arg lidar_offset_y) $(arg lidar_offset_z)
+              $(arg lidar_yaw) $(arg lidar_pitch) $(arg lidar_roll)
+              $(arg ranger_base_frame) $(arg lidar_frame)" />
 
   <include if="$(arg launch_chassis)" file="$(find ranger_bringup)/launch/ranger_mini_v2.launch">
     <arg name="port_name" value="$(arg ranger_port_name)" />
@@ -133,7 +149,9 @@
     <arg name="pointcloud_topic" value="/lslidar_point_cloud" />
     <arg name="imu_topic" value="/IMU_data" />
     <arg name="map_frame" value="map" />
-    <arg name="pose_frame" value="lslidar" />
+    <arg name="pose_frame" value="$(arg lidar_frame)" />
+    <arg name="pose_fallback_frame" value="$(arg ranger_base_frame)" />
+    <arg name="pose_fallback_from_extrinsic" value="true" />
     <arg name="auto_start" value="$(arg map_update_auto_start)" />
     <arg name="session_root" value="$(arg map_update_session_root)" />
   </include>

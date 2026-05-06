@@ -13,6 +13,7 @@
 #include <vector>
 
 #include <Eigen/Dense>
+#include <Eigen/Geometry>
 #include <geometry_msgs/TransformStamped.h>
 #include <pcl/filters/voxel_grid.h>
 #include <pcl/io/pcd_io.h>
@@ -114,11 +115,14 @@ private:
     pnh_.param<bool>("auto_start", auto_start_, false);
 
     pnh_.param<std::string>("map_frame", map_frame_, "map");
-    pnh_.param<std::string>("pose_frame", pose_frame_, "lslidar");
+    pnh_.param<std::string>("pose_frame", pose_frame_, "laser_link");
+    pnh_.param<std::string>("pose_fallback_frame", pose_fallback_frame_, "base_link");
     map_frame_ = cleanFrame(map_frame_);
     pose_frame_ = cleanFrame(pose_frame_);
+    pose_fallback_frame_ = cleanFrame(pose_fallback_frame_);
     pnh_.param<double>("tf_timeout", tf_timeout_, 0.05);
     pnh_.param<bool>("allow_latest_tf_fallback", allow_latest_tf_fallback_, false);
+    pnh_.param<bool>("pose_fallback_from_extrinsic", pose_fallback_from_extrinsic_, true);
 
     pnh_.param<int>("preprocess/lidar_type", lidar_type_, VELO16);
     pnh_.param<int>("preprocess/scan_line", scan_line_, 16);
@@ -398,23 +402,56 @@ private:
 
   bool lookupExternalPose(double stamp_sec, ExternalPose &pose, std::string &error)
   {
+    std::string direct_error;
     try {
       geometry_msgs::TransformStamped tf_msg = tf_buffer_.lookupTransform(
           map_frame_, pose_frame_, ros::Time(stamp_sec), ros::Duration(tf_timeout_));
       fillPoseFromTransform(stamp_sec, tf_msg, pose);
       return true;
     } catch (const tf2::TransformException &exc) {
-      if (!allow_latest_tf_fallback_) {
-        error = exc.what();
-        return false;
-      }
+      direct_error = exc.what();
+    }
+
+    if (pose_fallback_from_extrinsic_ &&
+        !pose_fallback_frame_.empty() &&
+        pose_fallback_frame_ != pose_frame_) {
       try {
         geometry_msgs::TransformStamped tf_msg = tf_buffer_.lookupTransform(
-            map_frame_, pose_frame_, ros::Time(0), ros::Duration(tf_timeout_));
-        fillPoseFromTransform(stamp_sec, tf_msg, pose);
+            map_frame_, pose_fallback_frame_, ros::Time(stamp_sec), ros::Duration(tf_timeout_));
+        fillPoseFromFallbackTransform(stamp_sec, tf_msg, pose);
         return true;
-      } catch (const tf2::TransformException &latest_exc) {
-        error = std::string(exc.what()) + "; latest:" + latest_exc.what();
+      } catch (const tf2::TransformException &fallback_exc) {
+        direct_error += "; fallback " + map_frame_ + "->" + pose_fallback_frame_ +
+                        ":" + fallback_exc.what();
+      }
+    }
+
+    if (!allow_latest_tf_fallback_) {
+      error = direct_error;
+      return false;
+    }
+
+    try {
+      geometry_msgs::TransformStamped tf_msg = tf_buffer_.lookupTransform(
+          map_frame_, pose_frame_, ros::Time(0), ros::Duration(tf_timeout_));
+      fillPoseFromTransform(stamp_sec, tf_msg, pose);
+      return true;
+    } catch (const tf2::TransformException &latest_exc) {
+      if (!(pose_fallback_from_extrinsic_ &&
+            !pose_fallback_frame_.empty() &&
+            pose_fallback_frame_ != pose_frame_)) {
+        error = direct_error + "; latest:" + latest_exc.what();
+        return false;
+      }
+
+      try {
+        geometry_msgs::TransformStamped tf_msg = tf_buffer_.lookupTransform(
+            map_frame_, pose_fallback_frame_, ros::Time(0), ros::Duration(tf_timeout_));
+        fillPoseFromFallbackTransform(stamp_sec, tf_msg, pose);
+        return true;
+      } catch (const tf2::TransformException &fallback_latest_exc) {
+        error = direct_error + "; latest:" + latest_exc.what() +
+                "; fallback_latest:" + fallback_latest_exc.what();
         return false;
       }
     }
@@ -433,6 +470,26 @@ private:
                                 tf_msg.transform.rotation.y,
                                 tf_msg.transform.rotation.z)
                  .normalized();
+  }
+
+  void fillPoseFromFallbackTransform(double stamp_sec,
+                                     const geometry_msgs::TransformStamped &tf_msg,
+                                     ExternalPose &pose)
+  {
+    Eigen::Vector3d t_map_fallback(tf_msg.transform.translation.x,
+                                   tf_msg.transform.translation.y,
+                                   tf_msg.transform.translation.z);
+    Eigen::Quaterniond q_map_fallback(tf_msg.transform.rotation.w,
+                                      tf_msg.transform.rotation.x,
+                                      tf_msg.transform.rotation.y,
+                                      tf_msg.transform.rotation.z);
+    q_map_fallback.normalize();
+    Eigen::Quaterniond q_fallback_lidar(ext_r_);
+    q_fallback_lidar.normalize();
+
+    pose.stamp = stamp_sec;
+    pose.t = t_map_fallback + q_map_fallback * ext_t_;
+    pose.q = (q_map_fallback * q_fallback_lidar).normalized();
   }
 
   bool saveFrame(double stamp_sec, const ExternalPose &pose)
@@ -580,6 +637,9 @@ private:
     out << "imu_topic: " << imu_topic_ << "\n";
     out << "map_frame: " << map_frame_ << "\n";
     out << "pose_frame: " << pose_frame_ << "\n";
+    out << "pose_fallback_from_extrinsic: "
+        << (pose_fallback_from_extrinsic_ ? "true" : "false") << "\n";
+    out << "pose_fallback_frame: " << pose_fallback_frame_ << "\n";
     out << "pcd_frame: lidar_frame_downsampled_feats_down_body\n";
     out << "pose_semantics: map_to_pose_frame_at_lidar_frame_end\n";
     out << "saved_frames: " << saved_count_ << "\n";
@@ -704,6 +764,7 @@ private:
   bool lidar_map_inited_ = false;
   bool first_lidar_seen_ = false;
   bool allow_latest_tf_fallback_ = false;
+  bool pose_fallback_from_extrinsic_ = true;
 
   std::string pointcloud_topic_;
   std::string imu_topic_;
@@ -711,6 +772,7 @@ private:
   std::string session_prefix_;
   std::string map_frame_;
   std::string pose_frame_;
+  std::string pose_fallback_frame_;
   fs::path session_dir_;
   std::optional<fs::path> session_pcd_dir_;
   std::ofstream pose_file_;

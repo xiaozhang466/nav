@@ -10,7 +10,10 @@
 #include <vector>
 #include <deque>
 #include <limits>
+#include <cctype>
+#include <cmath>
 
+#include <Eigen/Geometry>
 #include <pcl/filters/voxel_grid.h>
 #include <pcl/io/pcd_io.h>
 #include <geometry_msgs/TransformStamped.h>
@@ -42,7 +45,10 @@ struct Options
   std::string pointcloud_topic = "/lslidar_point_cloud";
   std::string imu_topic = "/IMU_data";
   std::string map_frame = "map";
-  std::string pose_frame = "lslidar";
+  std::string pose_frame = "laser_link";
+  std::string pose_fallback_frame = "base_link";
+  std::string selection_mode = "all";
+  std::string waypoints_file;
   int lidar_type = VELO16;
   int scan_line = 16;
   int point_filter_num = 1;
@@ -70,12 +76,18 @@ struct Options
   double lio_beam_err = 0.05;
   double lio_dept_err = 0.02;
   double local_map_sliding_thresh = 8.0;
+  double outbound_reverse_threshold_m = 2.0;
+  double outbound_min_travel_before_reverse_m = 5.0;
+  double outbound_end_margin_m = 5.0;
   bool downsample = true;
   bool imu_en = true;
   bool gravity_align_en = true;
   bool require_pose = true;
   bool lio_state_update = true;
   bool local_map_sliding_en = false;
+  bool pose_fallback_from_extrinsic = true;
+  bool outbound_require_near_route_end = false;
+  bool stop_after_outbound = true;
   std::vector<int> lio_layer_init_num = {5, 5, 5, 5, 5};
   V3D ext_t = V3D(0.0, 0.0, 0.3);
   M3D ext_r = M3D::Identity();
@@ -86,10 +98,48 @@ std::string boolText(bool value)
   return value ? "true" : "false";
 }
 
+std::string trim(const std::string &text)
+{
+  size_t first = 0;
+  while (first < text.size() &&
+         std::isspace(static_cast<unsigned char>(text[first]))) {
+    ++first;
+  }
+  size_t last = text.size();
+  while (last > first &&
+         std::isspace(static_cast<unsigned char>(text[last - 1]))) {
+    --last;
+  }
+  return text.substr(first, last - first);
+}
+
 bool parseBool(const std::string &value)
 {
   return value == "1" || value == "true" || value == "True" || value == "yes" ||
          value == "on";
+}
+
+bool startsWith(const std::string &text, const std::string &prefix)
+{
+  return text.rfind(prefix, 0) == 0;
+}
+
+bool parseYamlDouble(const std::string &line, const std::string &key, double &value)
+{
+  const std::string t = trim(line);
+  if (!startsWith(t, key)) {
+    return false;
+  }
+  std::string raw = trim(t.substr(key.size()));
+  const size_t comment = raw.find('#');
+  if (comment != std::string::npos) {
+    raw = trim(raw.substr(0, comment));
+  }
+  if (raw.empty()) {
+    return false;
+  }
+  value = std::stod(raw);
+  return true;
 }
 
 std::string cleanFrame(std::string frame)
@@ -113,6 +163,156 @@ std::string bagStem(const std::string &bag_path)
 fs::path defaultOutputDir(const std::string &bag_path)
 {
   return fs::path(ROOT_DIR) / "update_datasets" / (bagStem(bag_path) + "_undistorted");
+}
+
+struct RoutePoint
+{
+  double x = 0.0;
+  double y = 0.0;
+  double s = 0.0;
+};
+
+struct RouteProjection
+{
+  bool valid = false;
+  double progress = std::numeric_limits<double>::quiet_NaN();
+  double lateral_error = std::numeric_limits<double>::quiet_NaN();
+  int segment_index = -1;
+};
+
+struct RoutePath
+{
+  std::vector<RoutePoint> points;
+  double length = 0.0;
+
+  bool valid() const
+  {
+    return points.size() >= 2 && length > 0.0;
+  }
+
+  RouteProjection project(double x, double y) const
+  {
+    RouteProjection best;
+    if (!valid()) {
+      return best;
+    }
+
+    double best_dist2 = std::numeric_limits<double>::infinity();
+    for (size_t i = 0; i + 1 < points.size(); ++i) {
+      const RoutePoint &a = points[i];
+      const RoutePoint &b = points[i + 1];
+      const double dx = b.x - a.x;
+      const double dy = b.y - a.y;
+      const double len2 = dx * dx + dy * dy;
+      if (len2 <= 1e-9) {
+        continue;
+      }
+      double t = ((x - a.x) * dx + (y - a.y) * dy) / len2;
+      t = std::max(0.0, std::min(1.0, t));
+      const double px = a.x + t * dx;
+      const double py = a.y + t * dy;
+      const double ex = x - px;
+      const double ey = y - py;
+      const double dist2 = ex * ex + ey * ey;
+      if (dist2 < best_dist2) {
+        best_dist2 = dist2;
+        best.valid = true;
+        best.progress = a.s + t * std::sqrt(len2);
+        best.lateral_error = std::sqrt(dist2);
+        best.segment_index = static_cast<int>(i);
+      }
+    }
+    return best;
+  }
+};
+
+RoutePath loadWaypointRoute(const std::string &path)
+{
+  std::ifstream in(path);
+  if (!in.is_open()) {
+    throw std::runtime_error("failed to open waypoints_file: " + path);
+  }
+
+  struct RawPoint
+  {
+    double x = 0.0;
+    double y = 0.0;
+    bool has_x = false;
+    bool has_y = false;
+  };
+
+  std::vector<RawPoint> raw_points;
+  RawPoint current;
+  bool in_waypoints = false;
+
+  auto flushCurrent = [&]() {
+    if (current.has_x && current.has_y) {
+      raw_points.push_back(current);
+    }
+    current = RawPoint();
+  };
+
+  std::string line;
+  while (std::getline(in, line)) {
+    const std::string t = trim(line);
+    if (!in_waypoints) {
+      if (t == "waypoints:") {
+        in_waypoints = true;
+      }
+      continue;
+    }
+
+    if (startsWith(t, "- id:")) {
+      flushCurrent();
+      continue;
+    }
+    if (t.empty()) {
+      continue;
+    }
+
+    double value = 0.0;
+    if (parseYamlDouble(t, "x:", value)) {
+      current.x = value;
+      current.has_x = true;
+    } else if (parseYamlDouble(t, "y:", value)) {
+      current.y = value;
+      current.has_y = true;
+    }
+  }
+  flushCurrent();
+
+  if (raw_points.size() < 2) {
+    throw std::runtime_error("waypoints_file has fewer than 2 valid waypoints: " + path);
+  }
+
+  RoutePath route;
+  route.points.reserve(raw_points.size());
+  RoutePoint first;
+  first.x = raw_points.front().x;
+  first.y = raw_points.front().y;
+  first.s = 0.0;
+  route.points.push_back(first);
+
+  for (size_t i = 1; i < raw_points.size(); ++i) {
+    const RoutePoint &prev = route.points.back();
+    const double dx = raw_points[i].x - prev.x;
+    const double dy = raw_points[i].y - prev.y;
+    const double ds = std::sqrt(dx * dx + dy * dy);
+    if (ds <= 1e-6) {
+      continue;
+    }
+    RoutePoint p;
+    p.x = raw_points[i].x;
+    p.y = raw_points[i].y;
+    p.s = prev.s + ds;
+    route.points.push_back(p);
+  }
+
+  if (route.points.size() < 2) {
+    throw std::runtime_error("waypoints_file has no usable route segments: " + path);
+  }
+  route.length = route.points.back().s;
+  return route;
 }
 
 std::string formatSeq(uint64_t seq)
@@ -139,7 +339,9 @@ void printUsage()
       << "  --pointcloud_topic TOPIC  LiDAR PointCloud2 topic. Default: /lslidar_point_cloud\n"
       << "  --imu_topic TOPIC         IMU topic used for FAST-LIVO2 undistortion. Default: /IMU_data\n"
       << "  --map_frame FRAME         Pose target frame for TF lookup. Default: map\n"
-      << "  --pose_frame FRAME        Pose source frame for TF lookup. Default: lslidar\n"
+      << "  --pose_frame FRAME        Pose source frame for TF lookup. Default: laser_link\n"
+      << "  --pose_fallback_frame FRAME Frame used with extrinsic if pose_frame TF is missing. Default: base_link\n"
+      << "  --pose_fallback_from_extrinsic true|false Compose map->pose_frame from map->fallback and LiDAR extrinsic. Default: true\n"
       << "  --require_pose true|false Skip frames without map->pose TF. Default: true\n"
       << "  --lidar_type N            FAST-LIVO2 lidar type. Default: 2 (VELO16)\n"
       << "  --scan_line N             LiDAR scan lines. Default: 16\n"
@@ -156,6 +358,13 @@ void printUsage()
       << "  --downsample true|false   Save VoxelGrid downsampled body cloud. Default: true\n"
       << "  --filter_size_surf M      VoxelGrid leaf size when downsample=true. Default: 0.1\n"
       << "  --min_points N            Skip output clouds smaller than N points. Default: 1\n"
+      << "  --selection_mode MODE     Frame selection: all or outbound_once. Default: all\n"
+      << "  --waypoints_file FILE     Waypoint YAML for outbound_once route progress.\n"
+      << "  --outbound_reverse_threshold_m M Detect return when route progress drops by M. Default: 2.0\n"
+      << "  --outbound_min_travel_before_reverse_m M Ignore reverse detection before this progress. Default: 5.0\n"
+      << "  --outbound_require_near_route_end true|false Require near route end before reverse detection. Default: false\n"
+      << "  --outbound_end_margin_m M Near-end margin when required. Default: 5.0\n"
+      << "  --stop_after_outbound true|false Stop processing after return is detected. Default: true\n"
       << "  --max_frames N            Stop after N saved frames. 0 means unlimited.\n";
 }
 
@@ -173,6 +382,10 @@ void applyOption(Options &opts, const std::string &key, const std::string &value
     opts.map_frame = cleanFrame(value);
   } else if (key == "pose_frame") {
     opts.pose_frame = cleanFrame(value);
+  } else if (key == "pose_fallback_frame") {
+    opts.pose_fallback_frame = cleanFrame(value);
+  } else if (key == "pose_fallback_from_extrinsic") {
+    opts.pose_fallback_from_extrinsic = parseBool(value);
   } else if (key == "require_pose") {
     opts.require_pose = parseBool(value);
   } else if (key == "lidar_type") {
@@ -231,6 +444,20 @@ void applyOption(Options &opts, const std::string &key, const std::string &value
     opts.filter_size_surf = std::stod(value);
   } else if (key == "min_points") {
     opts.min_points = std::stoi(value);
+  } else if (key == "selection_mode") {
+    opts.selection_mode = value;
+  } else if (key == "waypoints_file") {
+    opts.waypoints_file = value;
+  } else if (key == "outbound_reverse_threshold_m") {
+    opts.outbound_reverse_threshold_m = std::stod(value);
+  } else if (key == "outbound_min_travel_before_reverse_m") {
+    opts.outbound_min_travel_before_reverse_m = std::stod(value);
+  } else if (key == "outbound_require_near_route_end") {
+    opts.outbound_require_near_route_end = parseBool(value);
+  } else if (key == "outbound_end_margin_m") {
+    opts.outbound_end_margin_m = std::stod(value);
+  } else if (key == "stop_after_outbound") {
+    opts.stop_after_outbound = parseBool(value);
   } else if (key == "max_frames") {
     opts.max_frames = std::stoi(value);
   }
@@ -285,7 +512,11 @@ void writeMetadata(const fs::path &output_dir,
                    uint64_t saved_frames,
                    uint64_t skipped_frames,
                    uint64_t imu_wait_frames,
-                   uint64_t pose_missing_frames)
+                   uint64_t pose_missing_frames,
+                   uint64_t pose_fallback_frames,
+                   uint64_t selection_skipped_frames,
+                   bool selection_stopped_early,
+                   double route_length)
 {
   std::ofstream out((output_dir / "metadata.yaml").string(), std::ios::out);
   out << "format: fast_livo2_bag_lio_corrected_frames\n";
@@ -294,7 +525,11 @@ void writeMetadata(const fs::path &output_dir,
   out << "imu_topic: " << opts.imu_topic << "\n";
   out << "map_frame: " << opts.map_frame << "\n";
   out << "pose_frame: " << opts.pose_frame << "\n";
-  out << "pose_source: bag_tf\n";
+  out << "pose_source: bag_tf";
+  if (opts.pose_fallback_from_extrinsic) {
+    out << "_with_extrinsic_fallback";
+  }
+  out << "\n";
   out << "pose_file: lidar_poses.txt\n";
   out << "output_dir: " << output_dir.string() << "\n";
   out << "output_cloud: fast_livo2_preprocess_imu_undistorted";
@@ -313,6 +548,21 @@ void writeMetadata(const fs::path &output_dir,
   out << "skipped_frames: " << skipped_frames << "\n";
   out << "imu_wait_frames: " << imu_wait_frames << "\n";
   out << "pose_missing_frames: " << pose_missing_frames << "\n";
+  out << "pose_fallback_frames: " << pose_fallback_frames << "\n";
+  out << "selection:\n";
+  out << "  mode: " << opts.selection_mode << "\n";
+  out << "  waypoints_file: " << opts.waypoints_file << "\n";
+  out << "  route_length: " << route_length << "\n";
+  out << "  skipped_frames: " << selection_skipped_frames << "\n";
+  out << "  stopped_early: " << boolText(selection_stopped_early) << "\n";
+  out << "  outbound_reverse_threshold_m: "
+      << opts.outbound_reverse_threshold_m << "\n";
+  out << "  outbound_min_travel_before_reverse_m: "
+      << opts.outbound_min_travel_before_reverse_m << "\n";
+  out << "  outbound_require_near_route_end: "
+      << boolText(opts.outbound_require_near_route_end) << "\n";
+  out << "  outbound_end_margin_m: " << opts.outbound_end_margin_m << "\n";
+  out << "  stop_after_outbound: " << boolText(opts.stop_after_outbound) << "\n";
   out << "preprocess:\n";
   out << "  lidar_type: " << opts.lidar_type << "\n";
   out << "  scan_line: " << opts.scan_line << "\n";
@@ -335,6 +585,9 @@ void writeMetadata(const fs::path &output_dir,
   out << "tf:\n";
   out << "  cache_time: " << opts.tf_cache_time << "\n";
   out << "  require_pose: " << boolText(opts.require_pose) << "\n";
+  out << "  pose_fallback_from_extrinsic: "
+      << boolText(opts.pose_fallback_from_extrinsic) << "\n";
+  out << "  pose_fallback_frame: " << opts.pose_fallback_frame << "\n";
   out << "lio:\n";
   out << "  state_update: " << boolText(opts.lio_state_update) << "\n";
   out << "  voxel_size: " << opts.lio_voxel_size << "\n";
@@ -445,19 +698,77 @@ void loadTfMessages(rosbag::Bag &bag,
   }
 }
 
+geometry_msgs::TransformStamped composePoseWithExtrinsic(
+    const geometry_msgs::TransformStamped &map_to_fallback,
+    const Options &opts,
+    double stamp_sec)
+{
+  Eigen::Quaterniond q_map_fallback(
+      map_to_fallback.transform.rotation.w,
+      map_to_fallback.transform.rotation.x,
+      map_to_fallback.transform.rotation.y,
+      map_to_fallback.transform.rotation.z);
+  q_map_fallback.normalize();
+  Eigen::Vector3d t_map_fallback(
+      map_to_fallback.transform.translation.x,
+      map_to_fallback.transform.translation.y,
+      map_to_fallback.transform.translation.z);
+
+  Eigen::Quaterniond q_fallback_lidar(opts.ext_r);
+  q_fallback_lidar.normalize();
+  const Eigen::Vector3d t_fallback_lidar = opts.ext_t;
+
+  const Eigen::Quaterniond q_map_lidar =
+      (q_map_fallback * q_fallback_lidar).normalized();
+  const Eigen::Vector3d t_map_lidar =
+      t_map_fallback + q_map_fallback * t_fallback_lidar;
+
+  geometry_msgs::TransformStamped result;
+  result.header.stamp = ros::Time(stamp_sec);
+  result.header.frame_id = opts.map_frame;
+  result.child_frame_id = opts.pose_frame;
+  result.transform.translation.x = t_map_lidar.x();
+  result.transform.translation.y = t_map_lidar.y();
+  result.transform.translation.z = t_map_lidar.z();
+  result.transform.rotation.x = q_map_lidar.x();
+  result.transform.rotation.y = q_map_lidar.y();
+  result.transform.rotation.z = q_map_lidar.z();
+  result.transform.rotation.w = q_map_lidar.w();
+  return result;
+}
+
 bool lookupPose(tf2::BufferCore &tf_buffer,
                 const Options &opts,
                 double stamp_sec,
                 geometry_msgs::TransformStamped &pose,
-                std::string &error)
+                std::string &error,
+                bool &used_fallback)
 {
+  used_fallback = false;
   try {
     pose = tf_buffer.lookupTransform(
         opts.map_frame, opts.pose_frame, ros::Time(stamp_sec));
     return true;
   } catch (const tf2::TransformException &exc) {
-    error = exc.what();
-    return false;
+    const std::string direct_error = exc.what();
+    if (!opts.pose_fallback_from_extrinsic ||
+        opts.pose_fallback_frame.empty() ||
+        opts.pose_fallback_frame == opts.pose_frame) {
+      error = direct_error;
+      return false;
+    }
+
+    try {
+      geometry_msgs::TransformStamped fallback_pose = tf_buffer.lookupTransform(
+          opts.map_frame, opts.pose_fallback_frame, ros::Time(stamp_sec));
+      pose = composePoseWithExtrinsic(fallback_pose, opts, stamp_sec);
+      used_fallback = true;
+      return true;
+    } catch (const tf2::TransformException &fallback_exc) {
+      error = direct_error + "; fallback " + opts.map_frame + "->" +
+              opts.pose_fallback_frame + ": " + fallback_exc.what();
+      return false;
+    }
   }
 }
 
@@ -483,6 +794,7 @@ int main(int argc, char **argv)
 {
   ros::init(argc, argv, "fast_livo2_bag_frame_exporter",
             ros::init_options::AnonymousName | ros::init_options::NoSigintHandler);
+  ros::NodeHandle nh;
 
   Options opts;
   try {
@@ -495,6 +807,17 @@ int main(int argc, char **argv)
 
   if (opts.bag_path.empty()) {
     printUsage();
+    return 2;
+  }
+  if (opts.selection_mode != "all" && opts.selection_mode != "outbound_once") {
+    std::cerr << "Argument error: unsupported selection_mode: "
+              << opts.selection_mode << "\n";
+    printUsage();
+    return 2;
+  }
+  if (opts.selection_mode == "outbound_once" && opts.waypoints_file.empty()) {
+    std::cerr << "Argument error: --waypoints_file is required when "
+              << "selection_mode=outbound_once\n";
     return 2;
   }
 
@@ -537,10 +860,26 @@ int main(int argc, char **argv)
   voxelmap_manager->extT_ = opts.ext_t;
   pcl::PointCloud<pcl::PointXYZI>::Ptr feats_down_world(new pcl::PointCloud<pcl::PointXYZI>());
 
+  RoutePath route;
+  const bool route_selection_enabled = opts.selection_mode == "outbound_once";
+  if (route_selection_enabled) {
+    try {
+      route = loadWaypointRoute(opts.waypoints_file);
+    } catch (const std::exception &exc) {
+      std::cerr << "Argument error: " << exc.what() << "\n";
+      releaseVoxelMap(voxelmap_manager);
+      return 2;
+    }
+    ROS_INFO_STREAM("loaded outbound selection route from " << opts.waypoints_file
+                    << " waypoints=" << route.points.size()
+                    << " length=" << route.length);
+  }
+
   std::ofstream frames_csv((output_dir / "frames.csv").string(), std::ios::out);
   frames_csv << "seq,stamp,frame_begin,frame_end,pcd,frame_id,raw_points,"
                 "preprocessed_points,undistorted_points,output_points,imu_count,"
                 "lio_effective_features,lidar_map_inited,pose_status,x,y,z,qx,qy,qz,qw,"
+                "route_progress,route_lateral_error,route_segment,selection_status,"
                 "first_offset_ms,last_offset_ms\n";
   std::ofstream pose_file((output_dir / "lidar_poses.txt").string(), std::ios::out);
 
@@ -552,6 +891,11 @@ int main(int argc, char **argv)
   uint64_t skipped_frames = 0;
   uint64_t imu_wait_frames = 0;
   uint64_t pose_missing_frames = 0;
+  uint64_t pose_fallback_frames = 0;
+  uint64_t selection_skipped_frames = 0;
+  bool selection_stopped_early = false;
+  bool outbound_complete = false;
+  double best_route_progress = -std::numeric_limits<double>::infinity();
 
   try {
     rosbag::Bag bag;
@@ -704,7 +1048,9 @@ int main(int argc, char **argv)
 
       geometry_msgs::TransformStamped pose_tf;
       std::string pose_error;
-      const bool pose_ok = lookupPose(tf_buffer, opts, frame_end, pose_tf, pose_error);
+      bool pose_used_fallback = false;
+      const bool pose_ok = lookupPose(
+          tf_buffer, opts, frame_end, pose_tf, pose_error, pose_used_fallback);
       if (!pose_ok) {
         ++pose_missing_frames;
         if (opts.require_pose) {
@@ -712,6 +1058,75 @@ int main(int argc, char **argv)
           ROS_WARN_STREAM_THROTTLE(5.0, "pose unavailable at " << frame_end
                                    << " for " << opts.map_frame << "->"
                                    << opts.pose_frame << ": " << pose_error);
+          continue;
+        }
+      }
+      if (pose_used_fallback) {
+        ++pose_fallback_frames;
+      }
+
+      const double nan = std::numeric_limits<double>::quiet_NaN();
+      const double x = pose_ok ? pose_tf.transform.translation.x : nan;
+      const double y = pose_ok ? pose_tf.transform.translation.y : nan;
+      const double z = pose_ok ? pose_tf.transform.translation.z : nan;
+      const double qx = pose_ok ? pose_tf.transform.rotation.x : nan;
+      const double qy = pose_ok ? pose_tf.transform.rotation.y : nan;
+      const double qz = pose_ok ? pose_tf.transform.rotation.z : nan;
+      const double qw = pose_ok ? pose_tf.transform.rotation.w : nan;
+
+      double route_progress = nan;
+      double route_lateral_error = nan;
+      int route_segment = -1;
+      std::string selection_status = route_selection_enabled ? "outbound" : "all";
+
+      if (route_selection_enabled) {
+        bool selected = true;
+        if (!pose_ok) {
+          selected = false;
+          selection_status = "pose_missing";
+        } else {
+          const RouteProjection projection = route.project(x, y);
+          if (!projection.valid) {
+            selected = false;
+            selection_status = "route_projection_failed";
+          } else {
+            route_progress = projection.progress;
+            route_lateral_error = projection.lateral_error;
+            route_segment = projection.segment_index;
+            best_route_progress = std::max(best_route_progress, route_progress);
+
+            if (outbound_complete) {
+              selected = false;
+              selection_status = "after_outbound";
+            } else {
+              const bool traveled_enough =
+                  best_route_progress >= opts.outbound_min_travel_before_reverse_m;
+              const bool near_route_end =
+                  !opts.outbound_require_near_route_end ||
+                  best_route_progress >=
+                      std::max(0.0, route.length - opts.outbound_end_margin_m);
+              const bool reversed =
+                  traveled_enough && near_route_end &&
+                  route_progress + opts.outbound_reverse_threshold_m < best_route_progress;
+              if (reversed) {
+                outbound_complete = true;
+                selected = false;
+                selection_status = "reverse_detected";
+              }
+            }
+          }
+        }
+
+        if (!selected) {
+          ++selection_skipped_frames;
+          ++skipped_frames;
+          if (selection_status == "reverse_detected" && opts.stop_after_outbound) {
+            selection_stopped_early = true;
+            ROS_INFO_STREAM("outbound selection complete at route_progress="
+                            << route_progress << " best_progress="
+                            << best_route_progress << "; stopping export");
+            break;
+          }
           continue;
         }
       }
@@ -733,14 +1148,6 @@ int main(int argc, char **argv)
 
       const uint64_t raw_points = static_cast<uint64_t>(msg->width) *
                                   static_cast<uint64_t>(msg->height);
-      const double nan = std::numeric_limits<double>::quiet_NaN();
-      const double x = pose_ok ? pose_tf.transform.translation.x : nan;
-      const double y = pose_ok ? pose_tf.transform.translation.y : nan;
-      const double z = pose_ok ? pose_tf.transform.translation.z : nan;
-      const double qx = pose_ok ? pose_tf.transform.rotation.x : nan;
-      const double qy = pose_ok ? pose_tf.transform.rotation.y : nan;
-      const double qz = pose_ok ? pose_tf.transform.rotation.z : nan;
-      const double qw = pose_ok ? pose_tf.transform.rotation.w : nan;
       frames_csv << saved_frames << ","
                  << formatStamp(stamp.toSec()) << ","
                  << formatStamp(frame_begin) << ","
@@ -754,7 +1161,7 @@ int main(int argc, char **argv)
                  << imu_window.size() << ","
                  << (opts.lio_state_update ? voxelmap_manager->effct_feat_num_ : 0) << ","
                  << (lidar_map_inited ? "true" : "false") << ","
-                 << (pose_ok ? "ok" : "missing") << ","
+                 << (pose_ok ? (pose_used_fallback ? "ok_fallback" : "ok") : "missing") << ","
                  << x << ","
                  << y << ","
                  << z << ","
@@ -762,6 +1169,10 @@ int main(int argc, char **argv)
                  << qy << ","
                  << qz << ","
                  << qw << ","
+                 << route_progress << ","
+                 << route_lateral_error << ","
+                 << route_segment << ","
+                 << selection_status << ","
                  << first_offset_ms << ","
                  << last_offset_ms << "\n";
 
@@ -785,8 +1196,10 @@ int main(int argc, char **argv)
   } catch (const std::exception &exc) {
     std::cerr << "Failed to export bag frames: " << exc.what() << "\n";
     writeMetadata(output_dir, opts, total_clouds, total_imus, dynamic_tf_count,
-                  static_tf_count, saved_frames, skipped_frames, imu_wait_frames,
-                  pose_missing_frames);
+                  static_tf_count, saved_frames, skipped_frames,
+                  imu_wait_frames, pose_missing_frames, pose_fallback_frames,
+                  selection_skipped_frames, selection_stopped_early,
+                  route.length);
     releaseVoxelMap(voxelmap_manager);
     return 1;
   }
@@ -795,7 +1208,8 @@ int main(int argc, char **argv)
   pose_file.close();
   writeMetadata(output_dir, opts, total_clouds, total_imus, dynamic_tf_count,
                 static_tf_count, saved_frames, skipped_frames, imu_wait_frames,
-                pose_missing_frames);
+                pose_missing_frames, pose_fallback_frames,
+                selection_skipped_frames, selection_stopped_early, route.length);
   releaseVoxelMap(voxelmap_manager);
 
   ROS_INFO_STREAM("FAST-LIVO2 bag frame export done: output=" << output_dir
@@ -803,6 +1217,10 @@ int main(int argc, char **argv)
                   << " imus=" << total_imus
                   << " saved=" << saved_frames
                   << " skipped=" << skipped_frames
-                  << " pose_missing=" << pose_missing_frames);
+                  << " pose_missing=" << pose_missing_frames
+                  << " pose_fallback=" << pose_fallback_frames
+                  << " selection_skipped=" << selection_skipped_frames
+                  << " selection_stopped="
+                  << boolText(selection_stopped_early));
   return 0;
 }
